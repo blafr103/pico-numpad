@@ -10,13 +10,15 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 - 16x2 LCD with switchable views:
   - Clock (date + time, synced from the host over USB serial)
   - Lifetime keypress statistics
+  - PC stats (CPU/GPU utilization, temperature, and package power)
 - NumLock doubles as a momentary Fn key:
   - Fn+0: Clock view
   - Fn+1: Statistics view
+  - Fn+2: PC stats view
 - Persistent lifetime key counter stored in onboard flash
 - Automatic LCD backlight/LED timeout after 60 seconds of inactivity
-- Optional host companion script feeding local time (extensible
-  key:value serial protocol; PC stats planned)
+- Optional host companion script feeding local time and hardware
+  stats (extensible key:value serial protocol)
 
 ## Hardware
 
@@ -38,11 +40,19 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 3. Install `adafruit_hid` from the
    [CircuitPython 9.x library bundle](https://circuitpython.org/libraries)
    into `lib/`.
-4. Optional, for the clock: `pip install pyserial` on the PC and run
-   `python host/timesync.py`. The pad is fully functional without it;
-   the clock shows UNKNOWN until first sync.
-	- The Pico exposes two serial ports; the script auto-detects 
-	the data port, or set PORT in the script manually.
+4. Optional, for the clock and PC stats: `pip install pyserial requests`
+   on the PC and run `python host/companion.py`. The pad is fully
+   functional without it; the clock shows UNKNOWN and PC stats show
+   "no data" until first contact.
+   - The Pico exposes two serial ports; the script auto-detects
+     the data port, or set PORT in the script manually.
+   - PC stats additionally require
+     [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
+     running as administrator with its web server enabled
+     (Options → Remote Web Server → Run). Time works without it.
+   - For hands-off startup, run both at logon: LibreHardwareMonitor
+     via its own startup option, and companion.py via Task Scheduler
+     (`pythonw.exe <path>\companion.py`).
 
 ## Design
 
@@ -69,19 +79,27 @@ control. A full LCD line write costs ~50 ms over I²C, so
 unconditional redraws would starve input latency.
 
 The LCD is organized as switchable views (splash on boot, clock,
-statistics). Holding **NumLock** acts as a momentary Fn key: tapping
-a digit while held switches views without typing it. A plain NumLock
-tap is deferred until release so tap and hold can be distinguished
-without affecting normal typing.
+statistics, PC stats). Holding **NumLock** acts as a momentary Fn key:
+tapping a digit while held switches views without typing it. A plain
+NumLock tap is deferred until release so tap and hold can be
+distinguished without affecting normal typing.
 
-Time comes from an optional host script (`host/timesync.py`) over a
-second USB CDC serial port enabled in `boot.py`. The protocol is
-newline-terminated ASCII `key:value` lines; the Pico is a pure
-listener and the host broadcasts unsolicited (on connect and every
-30 s). The clock free-runs on the crystal between syncs and re-anchors
-on every message, bounding drift to one broadcast interval. The RP2040
-has no battery-backed RTC, so time is lost at power-off and shows
-UNKNOWN until the first sync.
+Time and PC stats come from an optional host script
+(`host/companion.py`) over a second USB CDC serial port enabled in
+`boot.py`. The protocol is newline-terminated ASCII `key:value` lines;
+the Pico is a pure listener and the host broadcasts unsolicited (time
+on connect and every 30 s, stats every 2 s). The clock free-runs on
+the crystal between syncs and re-anchors on every message, bounding
+drift to one broadcast interval. The RP2040 has no battery-backed RTC,
+so time is lost at power-off and shows UNKNOWN until the first sync.
+
+PC stats are read from LibreHardwareMonitor's JSON endpoint on the
+host and forwarded as integers; a sensor the host cannot find is sent
+as -1 and displayed as `--`. Sensor matching uses hardware prefix and
+display name rather than numeric indices, which shift between LHM
+versions; the current names target this machine's CPU/GPU and need
+adjusting for other hardware. Last-received values persist on screen
+if the host stops sending.
 
 The lifetime keypress counter is stored in `/count.txt`. To minimize
 flash wear, writes are batched (100 keypresses by default) and flushed
@@ -95,8 +113,8 @@ when the device transitions to the idle state.
   presence and orientation per key
 
 Run either by copying to CIRCUITPY as `code.py` (back up first) and
-watching the serial console. Run in dev mode (NumLock at plug-in) 
-so the drive is writable
+watching the serial console. Run in dev mode (NumLock at plug-in)
+so the drive is writable.
 
 ## Credits
 
