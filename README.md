@@ -7,12 +7,16 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 
 - USB HID numeric keypad
 - Event-driven matrix scanning (`keypad.KeyMatrix`)
-- 16×2 LCD displaying key history and device statistics
+- 16x2 LCD with switchable views:
+  - Clock (date + time, synced from the host over USB serial)
+  - Lifetime keypress statistics
 - NumLock doubles as a momentary Fn key:
-  - Fn+0: History view
-  - Fn+1: Lifetime keypress statistics
+  - Fn+0: Clock view
+  - Fn+1: Statistics view
 - Persistent lifetime key counter stored in onboard flash
 - Automatic LCD backlight/LED timeout after 60 seconds of inactivity
+- Optional host companion script feeding local time (extensible
+  key:value serial protocol; PC stats planned)
 
 ## Hardware
 
@@ -27,12 +31,18 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 ## Install
 
 1. Flash CircuitPython 9.x to the Pico.
-2. Copy `code.py`, `boot.py`, and `lib/` to the CIRCUITPY drive.
-	- On first boot, the firmware automatically creates `/count.txt` to 
-	store the lifetime keypress count.
+2. Copy `code.py`, `boot.py`, and `lib/` to the CIRCUITPY drive,
+   then power cycle (`boot.py` changes only apply at power-up).
+   - On first boot, the firmware creates `/count.txt` to store the
+     lifetime keypress count.
 3. Install `adafruit_hid` from the
    [CircuitPython 9.x library bundle](https://circuitpython.org/libraries)
    into `lib/`.
+4. Optional, for the clock: `pip install pyserial` on the PC and run
+   `python host/timesync.py`. The pad is fully functional without it;
+   the clock shows UNKNOWN until first sync.
+	- The Pico exposes two serial ports; the script auto-detects 
+	the data port, or set PORT in the script manually.
 
 ## Design
 
@@ -45,28 +55,36 @@ the scanner (polling, per-key debounce state machine) is kept in
 [`reference/`](reference/) with a comparison of the two approaches.
 
 `columns_to_anodes=False` is required for this board's diode
-orientation, the default silently reads all keys as dead.
+orientation; the default silently reads all keys as dead.
 
 `boot.py` remounts the filesystem to allow the firmware to save the
 persistent key counter. Holding **NumLock** while connecting the Pico
 starts a development mode that leaves the drive writable from the host
 and disables persistence.
 
-The LCD (row 0: title, row 1: last-16-keypress history, backlight off
-after 60 s idle) is driven with no `sleep()` in the main loop:
-dirty-flag rendering (I²C writes only on state change), fixed-width
-line overwrites instead of `clear()`, and edge-triggered backlight
+The LCD is driven with no `sleep()` in the main loop: dirty-flag
+rendering (I²C writes only on state change), fixed-width line
+overwrites instead of `clear()`, and edge-triggered backlight
 control. A full LCD line write costs ~50 ms over I²C, so
 unconditional redraws would starve input latency.
 
-Phase 2 adds a lightweight view system for the LCD. Holding **NumLock**
-acts as a momentary Fn key while tapping **0** or **1** switches between
-the history and lifetime statistics views. A normal NumLock tap is
-deferred until release so tap and hold behavior can be distinguished
+The LCD is organized as switchable views (splash on boot, clock,
+statistics). Holding **NumLock** acts as a momentary Fn key: tapping
+a digit while held switches views without typing it. A plain NumLock
+tap is deferred until release so tap and hold can be distinguished
 without affecting normal typing.
 
+Time comes from an optional host script (`host/timesync.py`) over a
+second USB CDC serial port enabled in `boot.py`. The protocol is
+newline-terminated ASCII `key:value` lines; the Pico is a pure
+listener and the host broadcasts unsolicited (on connect and every
+30 s). The clock free-runs on the crystal between syncs and re-anchors
+on every message, bounding drift to one broadcast interval. The RP2040
+has no battery-backed RTC, so time is lost at power-off and shows
+UNKNOWN until the first sync.
+
 The lifetime keypress counter is stored in `/count.txt`. To minimize
-flash wear, writes are batched (100 keypresses by default) and flushed 
+flash wear, writes are batched (100 keypresses by default) and flushed
 when the device transitions to the idle state.
 
 ## Tools
@@ -77,7 +95,8 @@ when the device transitions to the idle state.
   presence and orientation per key
 
 Run either by copying to CIRCUITPY as `code.py` (back up first) and
-watching the serial console.
+watching the serial console. Run in dev mode (NumLock at plug-in) 
+so the drive is writable
 
 ## Credits
 
