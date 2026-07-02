@@ -31,7 +31,7 @@ import board
 import busio
 import digitalio
 import keypad
-import storage
+#import storage
 import usb_hid
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keycode import Keycode
@@ -51,23 +51,23 @@ VIEW_STATS = 1
 # Matrix position (HID keycode, display label, Fn view or None)
 # Unwired matrix positions are intentionally omitted.
 KEYS = {
-    0:  (Keycode.KEYPAD_NUMLOCK,       "N", None),
-    1:  (Keycode.KEYPAD_FORWARD_SLASH, "/", None),
-    2:  (Keycode.KEYPAD_ASTERISK,      "*", None),
-    3:  (Keycode.KEYPAD_MINUS,         "-", None),
-    4:  (Keycode.KEYPAD_SEVEN,         "7", None),
-    5:  (Keycode.KEYPAD_EIGHT,         "8", None),
-    6:  (Keycode.KEYPAD_NINE,          "9", None),
-    7:  (Keycode.KEYPAD_PLUS,          "+", None),
-    8:  (Keycode.KEYPAD_FOUR,          "4", None),
-    9:  (Keycode.KEYPAD_FIVE,          "5", None),
-    10: (Keycode.KEYPAD_SIX,           "6", None),
-    12: (Keycode.KEYPAD_ONE,           "1", VIEW_STATS),
-    13: (Keycode.KEYPAD_TWO,           "2", None),
-    14: (Keycode.KEYPAD_THREE,         "3", None),
-    16: (Keycode.KEYPAD_ZERO,          "0", VIEW_HISTORY),
-    18: (Keycode.KEYPAD_PERIOD,        ".", None),
-    19: (Keycode.KEYPAD_ENTER,         "E", None),
+    0:  (Keycode.KEYPAD_NUMLOCK, None),
+    1:  (Keycode.KEYPAD_FORWARD_SLASH, None),
+    2:  (Keycode.KEYPAD_ASTERISK, None),
+    3:  (Keycode.KEYPAD_MINUS, None),
+    4:  (Keycode.KEYPAD_SEVEN, None),
+    5:  (Keycode.KEYPAD_EIGHT, None),
+    6:  (Keycode.KEYPAD_NINE, None),
+    7:  (Keycode.KEYPAD_PLUS, None),
+    8:  (Keycode.KEYPAD_FOUR, None),
+    9:  (Keycode.KEYPAD_FIVE, None),
+    10: (Keycode.KEYPAD_SIX, None),
+    12: (Keycode.KEYPAD_ONE, VIEW_STATS),
+    13: (Keycode.KEYPAD_TWO, None),
+    14: (Keycode.KEYPAD_THREE, None),
+    16: (Keycode.KEYPAD_ZERO, VIEW_HISTORY),
+    18: (Keycode.KEYPAD_PERIOD, None),
+    19: (Keycode.KEYPAD_ENTER, None),
 }
 
 # initialize key matrix scanner
@@ -92,7 +92,7 @@ def load_count():
     try:
         with open(COUNT_FILE) as f:
             return int(f.read())
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
         return 0        # missing or invalid file
 
 def save_count():
@@ -115,7 +115,6 @@ view = VIEW_HISTORY
 view_dirty = True
 
 # LCD display state
-history = ""
 backlight_on = True
 
 # current time in milliseconds
@@ -131,7 +130,7 @@ def draw_line(row, text):
 def render():
     if view == VIEW_HISTORY:
         draw_line(0, "pico-numpad")
-        draw_line(1, " " * (LCD_COLS - len(history)) + history)
+        draw_line(1, "")
     elif view == VIEW_STATS:
         draw_line(0, "Presses:")
         draw_line(1, str(press_count))
@@ -150,7 +149,7 @@ while True:
     while event:
         key = KEYS.get(event.key_number)
         if key is not None:
-            keycode, label, fn_action = key
+            keycode, fn_action = key
 
             if event.pressed:
                 press_count += 1
@@ -168,9 +167,6 @@ while True:
                         view_dirty = True
                 else:
                     keyboard.press(keycode)
-                    history = (history + label)[-LCD_COLS:]
-                    if view == VIEW_HISTORY:
-                        view_dirty = True
                 if view == VIEW_STATS:
                     view_dirty = True      # count changed on-screen
             # key released
