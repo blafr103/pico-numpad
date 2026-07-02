@@ -1,17 +1,19 @@
 # ------------------------------------------------------------------
-# Production Version — 17-key USB numpad + LCD (Phase 2)
+# Production Version - 17-key USB numpad + LCD (Phase 2)
 # Hardware: Raspberry Pi Pico W (RP2040), CircuitPython 9.2.1
 #   Hand-wired 5x4 matrix, one diode per key
 #   (anode toward row, cathode toward column)
 #   Rows GP2-GP6, Cols GP12-GP15, LED GP11
 #   16x2 LCD on PCF8574 I2C backpack @ 0x27, SCL GP1, SDA GP0
 #
-# Phase 2 adds:
+# Phase 2:
 #   - NumLock as momentary function key (Fn): hold NumLock, tap a
 #     digit to switch views. Plain NumLock tap still sends NumLock
 #     (deferred to release; digits used with Fn are consumed, and
 #     their release edges suppressed).
-#       Fn+0: history view    Fn+1: stats view (lifetime presses)
+#       Fn+0: clock view    Fn+1: stats view (lifetime presses)
+#   - Splash screen on boot, timed transition (1.5 s) to clock view.
+#     Clock is a placeholder pending host time source (Phase 6).
 #   - Lifetime keystroke counter persisted to /count.txt.
 #     Requires boot.py (storage remount; hold NumLock at plug-in
 #     for dev mode - host-writable drive, persistence off).
@@ -31,7 +33,6 @@ import board
 import busio
 import digitalio
 import keypad
-#import storage
 import usb_hid
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keycode import Keycode
@@ -39,16 +40,35 @@ from adafruit_hid.keycode import Keycode
 from lcd import LCD
 from i2c_pcf8574_interface import I2CPCF8574Interface
 
+
+# ----------------------------
+# CONSTANTS
+# ----------------------------
 IDLE_TIMEOUT_MS = 60_000
 LCD_COLS = 16
 COUNT_FILE = "/count.txt"
 FLUSH_EVERY = 100
 
 FN_KEY = 0            # key_number of NumLock
-VIEW_HISTORY = 0
+# LCD views
 VIEW_STATS = 1
+VIEW_CLOCK = 2
+VIEW_SPLASH = 3
 
-# Matrix position (HID keycode, display label, Fn view or None)
+# ----------------------------
+# TIME BASE
+# ----------------------------
+# current time in milliseconds
+def now_ms():
+    return time.monotonic_ns() // 1_000_000
+
+SPLASH_DURATION_MS = 1500
+boot_time = now_ms()
+
+# ----------------------------
+# KEY MAP
+# ----------------------------
+# Matrix position - key_number = row * 4 + col - (HID keycode, Fn view or None)
 # Unwired matrix positions are intentionally omitted.
 KEYS = {
     0:  (Keycode.KEYPAD_NUMLOCK, None),
@@ -65,11 +85,14 @@ KEYS = {
     12: (Keycode.KEYPAD_ONE, VIEW_STATS),
     13: (Keycode.KEYPAD_TWO, None),
     14: (Keycode.KEYPAD_THREE, None),
-    16: (Keycode.KEYPAD_ZERO, VIEW_HISTORY),
+    16: (Keycode.KEYPAD_ZERO, VIEW_CLOCK),
     18: (Keycode.KEYPAD_PERIOD, None),
     19: (Keycode.KEYPAD_ENTER, None),
 }
 
+# ----------------------------
+# HARDWARE INIT
+# ----------------------------
 # initialize key matrix scanner
 matrix = keypad.KeyMatrix(
     row_pins=(board.GP2, board.GP3, board.GP4, board.GP5, board.GP6),
@@ -87,12 +110,15 @@ led.value = True
 i2c = busio.I2C(scl=board.GP1, sda=board.GP0)
 lcd = LCD(I2CPCF8574Interface(i2c, 0x27), num_rows=2, num_cols=LCD_COLS)
 
+# ----------------------------
+# STORAGE
+# ----------------------------
 # load persistent lifetime press counter
 def load_count():
     try:
         with open(COUNT_FILE) as f:
             return int(f.read())
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError):
         return 0        # missing or invalid file
 
 def save_count():
@@ -107,20 +133,26 @@ def save_count():
 press_count = load_count()
 unsaved = 0             # Presses since last save
 
+
+# ----------------------------
+# STATE
+# ----------------------------
 # Fn (Function) state
 fn_down = False         # NumLock physically held
 fn_used = False         # a digit was consumed during this hold
 consumed = set()        # keys whose release event should be ignored
-view = VIEW_HISTORY
+
+
+view = VIEW_SPLASH		# default view
 view_dirty = True
 
-# LCD display state
 backlight_on = True
+last_activity = now_ms()
 
-# current time in milliseconds
-def now_ms():
-    return time.monotonic_ns() // 1_000_000
 
+# ----------------------------
+# DISPLAY
+# ----------------------------
 # overwrite an entire LCD row to avoid clearing the display
 def draw_line(row, text):
     lcd.set_cursor_pos(row, 0)
@@ -128,19 +160,26 @@ def draw_line(row, text):
 
 # draw the active screen
 def render():
-    if view == VIEW_HISTORY:
+    if view == VIEW_SPLASH:
         draw_line(0, "pico-numpad")
         draw_line(1, "")
+    elif view == VIEW_CLOCK:
+        draw_line(0, "Idle Clock")
+        draw_line(1, "HH:MM:SS")  # placeholder
     elif view == VIEW_STATS:
         draw_line(0, "Presses:")
         draw_line(1, str(press_count))
 
+# ----------------------------
+# INIT DISPLAY
+# ----------------------------
 # initial LCD state
 lcd.clear()
 lcd.set_backlight(True)
 
-last_activity = now_ms()
-
+# ----------------------------
+# MAIN LOOP
+# ----------------------------
 while True:
     t = now_ms()
 
@@ -201,7 +240,13 @@ while True:
         lcd.set_backlight(True)
         led.value = True
         backlight_on = True
-
+        
+    # splash transition
+    if view == VIEW_SPLASH and (t - boot_time) > SPLASH_DURATION_MS:
+        view = VIEW_CLOCK
+        view_dirty = True
+    
+    # render
     if view_dirty:
         render()
         view_dirty = False
