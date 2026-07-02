@@ -1,29 +1,36 @@
 # ------------------------------------------------------------------
-# Production Version - 17-key USB numpad + LCD (Phase 2)
+# Production Version - 17-key USB numpad + LCD (Phase 4)
 # Hardware: Raspberry Pi Pico W (RP2040), CircuitPython 9.2.1
 #   Hand-wired 5x4 matrix, one diode per key
 #   (anode toward row, cathode toward column)
 #   Rows GP2-GP6, Cols GP12-GP15, LED GP11
 #   16x2 LCD on PCF8574 I2C backpack @ 0x27, SCL GP1, SDA GP0
 #
-# Phase 3 adds:
-#   - Host serial channel over usb_cdc.data (requires boot.py
-#     enabling it; power cycle after changing boot.py).
-#     Protocol: newline-terminated ASCII "key:value" lines.
-#     Pico is a pure listener; the PC script (host/timesync.py)
-#     broadcasts unsolicited. Currently handled: "time:<epoch>",
-#     epoch pre-adjusted to local time by the host.
-#   - Clock view shows YYYY/MM/DD + HH:MM, free-running between
-#     syncs (epoch anchored to monotonic ms at receipt). Every
-#     received time message re-anchors, bounding crystal drift to
-#     one broadcast interval. Shows UNKNOWN until first sync;
-#     time is lost at power-off (no battery RTC on RP2040).
+# Phase 4 adds:
+#   - PC stats view (Fn+2): CPU and GPU utilization %, temperature,
+#     and package power, one line each. Fed by the host script;
+#     shows 'no data' until the first message, '--' for individual
+#     sensors the host reports as missing (-1). Values persist
+#     unchanged if the host stops sending (no staleness timeout).
 #
-# Phase 2 (unchanged): NumLock momentary Fn (Fn+0 clock, Fn+1
-#   stats), splash on boot, lifetime press counter in /count.txt,
-#   batched flushes, boot.py dev-mode via NumLock at plug-in.
-# Phase 1 (unchanged): no sleep() in loop, dirty-flag rendering,
-#   fixed-width overwrites, edge-triggered backlight, 60 s idle.
+# Phase 3: host serial channel over usb_cdc.data (requires boot.py
+#   enabling it; power cycle after changing boot.py).
+#   Protocol: newline-terminated ASCII "key:value" lines.
+#   Pico is a pure listener; the PC script (host/companion.py)
+#   broadcasts unsolicited. Handled: "time:<epoch>" (epoch
+#   pre-adjusted to local time), "cpu:<util>,<temp>,<power>",
+#   "gpu:<util>,<temp>,<power>".
+#   Clock view (Fn+0) shows YYYY/MM/DD + HH:MM, free-running
+#   between syncs (epoch anchored to monotonic ms at receipt);
+#   re-anchors on every message, bounding crystal drift to one
+#   broadcast interval. UNKNOWN until first sync; time is lost at
+#   power-off (no battery RTC on RP2040).
+#
+# Phase 2: NumLock momentary Fn (Fn+1 press stats), splash on boot,
+#   lifetime press counter in /count.txt, batched flushes, boot.py
+#   dev-mode via NumLock at plug-in.
+# Phase 1: no sleep() in loop, dirty-flag rendering, fixed-width
+#   overwrites, edge-triggered backlight, 60 s idle.
 # ------------------------------------------------------------------
 
 import time
@@ -53,6 +60,7 @@ FN_KEY = 0            # key_number of NumLock
 VIEW_STATS = 1
 VIEW_CLOCK = 2
 VIEW_SPLASH = 3
+VIEW_PCSTATS = 4
 
 # ----------------------------
 # TIME BASE
@@ -82,7 +90,7 @@ KEYS = {
     9:  (Keycode.KEYPAD_FIVE, None),
     10: (Keycode.KEYPAD_SIX, None),
     12: (Keycode.KEYPAD_ONE, VIEW_STATS),
-    13: (Keycode.KEYPAD_TWO, None),
+    13: (Keycode.KEYPAD_TWO, VIEW_PCSTATS),
     14: (Keycode.KEYPAD_THREE, None),
     16: (Keycode.KEYPAD_ZERO, VIEW_CLOCK),
     18: (Keycode.KEYPAD_PERIOD, None),
@@ -108,6 +116,8 @@ led.value = True
 
 i2c = busio.I2C(scl=board.GP1, sda=board.GP0)
 lcd = LCD(I2CPCF8574Interface(i2c, 0x27), num_rows=2, num_cols=LCD_COLS)
+
+serial = usb_cdc.data      # None if boot.py didn't enable it
 
 # ----------------------------
 # STORAGE
@@ -162,6 +172,14 @@ def current_epoch(t):
 
 rx_buf = b""            # partial-line accumulator for serial input
 
+
+# ----------------------------
+# PC STATS STATE
+# ----------------------------
+pc_stats = {"cpu": None, "gpu": None}   # each: (util, temp, power)
+
+
+
 # ----------------------------
 # SERIAL
 # ----------------------------
@@ -174,7 +192,15 @@ def handle_message(key, value):
             return
         ms_at_sync = now_ms()
         synced = True
-    # future: cpu, ram, gputemp, ... (Phase 6b)
+    elif key in ("cpu", "gpu"):
+        global view_dirty
+        try:
+            util, temp, pwr = (int(x) for x in value.split(","))
+        except ValueError:
+            return
+        pc_stats[key] = (util, temp, pwr)
+        if view == VIEW_PCSTATS:
+            view_dirty = True
 
 def poll_serial():
     # non-blocking: consume whatever bytes are waiting, act on
@@ -197,6 +223,19 @@ def poll_serial():
 # ----------------------------
 # DISPLAY
 # ----------------------------
+
+DEGREE = chr(0xDF)      # degree symbol in the HD44780 character ROM
+
+def fmt(v, suffix):
+    return "--" + suffix if v < 0 else str(v) + suffix
+
+def stats_line(label, s):
+    if s is None:
+        return label + " no data"
+    util, temp, pwr = s
+    return "{} {} {} {}".format(
+        label, fmt(util, "%"), fmt(temp, DEGREE), fmt(pwr, "W"))
+
 # overwrite an entire LCD row to avoid clearing the display
 def draw_line(row, text):
     lcd.set_cursor_pos(row, 0)
@@ -215,6 +254,9 @@ def render(t):
     elif view == VIEW_STATS:
         draw_line(0, "Presses:")
         draw_line(1, str(press_count))
+    elif view == VIEW_PCSTATS:
+        draw_line(0, stats_line("C", pc_stats["cpu"]))
+        draw_line(1, stats_line("G", pc_stats["gpu"]))
         
 def clock_string(t):
     if not synced:
@@ -229,7 +271,6 @@ def clock_string(t):
 # initial LCD state
 lcd.clear()
 lcd.set_backlight(True)
-serial = usb_cdc.data      # None if boot.py didn't enable it
 
 # ----------------------------
 # MAIN LOOP

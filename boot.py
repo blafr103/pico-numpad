@@ -7,7 +7,7 @@
 # 1. Filesystem ownership (Phase 2):
 #      Normal boot  - code owns storage (persistence works)
 #      NumLock held - host owns storage (dev mode)
-# 2. USB CDC (Phase 6): enable the second serial port ("data").
+# 2. USB CDC (Phase 3): enable the second serial port ("data").
 #    console = REPL/Thonny as before; data = host<->Pico messages.
 #    Changes here take effect only after a POWER CYCLE, not reload.
 # ------------------------------------------------------------------
