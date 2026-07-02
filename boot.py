@@ -4,19 +4,20 @@
 # Selects filesystem ownership. The FAT filesystem can be writable
 # by either the USB host or CircuitPython, but never both.
 #
-#   Normal boot  - CircuitPython owns storage (persistence enabled;
-#                  CIRCUITPY is read-only on the host)
-#   NumLock held - USB host owns storage (development mode;
-#   at plug-in     persistence disabled)
-#
-# NumLock is matrix position (0,0): drive row GP2 high and read GP12.
-# Raw digitalio is required because keypad.KeyMatrix is not available
-# during boot.py.
+# 1. Filesystem ownership (Phase 2):
+#      Normal boot  - code owns storage (persistence works)
+#      NumLock held - host owns storage (dev mode)
+# 2. USB CDC (Phase 6): enable the second serial port ("data").
+#    console = REPL/Thonny as before; data = host<->Pico messages.
+#    Changes here take effect only after a POWER CYCLE, not reload.
 # ------------------------------------------------------------------
 
 import board
 import digitalio
 import storage
+import usb_cdc
+
+usb_cdc.enable(console=True, data=True)
 
 # configure GP2 as output, drive HIGH
 row0 = digitalio.DigitalInOut(board.GP2)

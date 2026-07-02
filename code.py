@@ -6,26 +6,24 @@
 #   Rows GP2-GP6, Cols GP12-GP15, LED GP11
 #   16x2 LCD on PCF8574 I2C backpack @ 0x27, SCL GP1, SDA GP0
 #
-# Phase 2:
-#   - NumLock as momentary function key (Fn): hold NumLock, tap a
-#     digit to switch views. Plain NumLock tap still sends NumLock
-#     (deferred to release; digits used with Fn are consumed, and
-#     their release edges suppressed).
-#       Fn+0: clock view    Fn+1: stats view (lifetime presses)
-#   - Splash screen on boot, timed transition (1.5 s) to clock view.
-#     Clock is a placeholder pending host time source (Phase 6).
-#   - Lifetime keystroke counter persisted to /count.txt.
-#     Requires boot.py (storage remount; hold NumLock at plug-in
-#     for dev mode - host-writable drive, persistence off).
-#     Writes batched: flush every FLUSH_EVERY presses and on idle
-#     transition - flash erase cycles are finite and writes cost ms.
+# Phase 3 adds:
+#   - Host serial channel over usb_cdc.data (requires boot.py
+#     enabling it; power cycle after changing boot.py).
+#     Protocol: newline-terminated ASCII "key:value" lines.
+#     Pico is a pure listener; the PC script (host/timesync.py)
+#     broadcasts unsolicited. Currently handled: "time:<epoch>",
+#     epoch pre-adjusted to local time by the host.
+#   - Clock view shows YYYY/MM/DD + HH:MM, free-running between
+#     syncs (epoch anchored to monotonic ms at receipt). Every
+#     received time message re-anchors, bounding crystal drift to
+#     one broadcast interval. Shows UNKNOWN until first sync;
+#     time is lost at power-off (no battery RTC on RP2040).
 #
-# Display design (Phase 1, unchanged):
-#   - No sleep() in the loop; timing via monotonic_ns timestamps.
-#   - Dirty-flag rendering: I2C writes only on state change
-#     (a full line write costs ~50 ms).
-#   - Fixed-width line overwrites, no clear().
-#   - Backlight edge-triggered; off after 60 s idle, wake also types.
+# Phase 2 (unchanged): NumLock momentary Fn (Fn+0 clock, Fn+1
+#   stats), splash on boot, lifetime press counter in /count.txt,
+#   batched flushes, boot.py dev-mode via NumLock at plug-in.
+# Phase 1 (unchanged): no sleep() in loop, dirty-flag rendering,
+#   fixed-width overwrites, edge-triggered backlight, 60 s idle.
 # ------------------------------------------------------------------
 
 import time
@@ -33,6 +31,7 @@ import board
 import busio
 import digitalio
 import keypad
+import usb_cdc
 import usb_hid
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keycode import Keycode
@@ -149,7 +148,52 @@ view_dirty = True
 backlight_on = True
 last_activity = now_ms()
 
+# ----------------------------
+# TIME SYNC STATE
+# ----------------------------
+synced = False
+epoch_at_sync = 0       # unix epoch (local) from last host message
+ms_at_sync = 0          # monotonic ms when that message arrived
+clock_shown = ""        # last string rendered on the clock view
 
+def current_epoch(t):
+    # free-run: anchor epoch + elapsed monotonic time since anchor
+    return epoch_at_sync + (t - ms_at_sync) // 1000
+
+rx_buf = b""            # partial-line accumulator for serial input
+
+# ----------------------------
+# SERIAL
+# ----------------------------
+def handle_message(key, value):
+    global synced, epoch_at_sync, ms_at_sync
+    if key == "time":
+        try:
+            epoch_at_sync = int(value)
+        except ValueError:
+            return
+        ms_at_sync = now_ms()
+        synced = True
+    # future: cpu, ram, gputemp, ... (Phase 6b)
+
+def poll_serial():
+    # non-blocking: consume whatever bytes are waiting, act on
+    # complete lines, keep the remainder buffered. A line may
+    # arrive split across polls; rx_buf carries the partial.
+    global rx_buf
+    if serial is None or serial.in_waiting == 0:
+        return
+    rx_buf += serial.read(serial.in_waiting)
+    while b"\n" in rx_buf:
+        line, rx_buf = rx_buf.split(b"\n", 1)
+        try:
+            text = line.decode().strip()
+        except UnicodeError:
+            continue
+        if ":" in text:
+            key, value = text.split(":", 1)
+            handle_message(key, value)
+            
 # ----------------------------
 # DISPLAY
 # ----------------------------
@@ -159,16 +203,25 @@ def draw_line(row, text):
     lcd.print((text + " " * LCD_COLS)[:LCD_COLS])
 
 # draw the active screen
-def render():
+def render(t):
+    global clock_shown
     if view == VIEW_SPLASH:
         draw_line(0, "pico-numpad")
         draw_line(1, "")
     elif view == VIEW_CLOCK:
-        draw_line(0, "Idle Clock")
-        draw_line(1, "HH:MM:SS")  # placeholder
+        clock_shown = clock_string(t)
+        draw_line(0, "Clock")
+        draw_line(1, clock_shown)
     elif view == VIEW_STATS:
         draw_line(0, "Presses:")
         draw_line(1, str(press_count))
+        
+def clock_string(t):
+    if not synced:
+        return "UNKNOWN"
+    tm = time.localtime(current_epoch(t))
+    return "{:04}/{:02}/{:02} {:02}:{:02}".format(
+        tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min)
 
 # ----------------------------
 # INIT DISPLAY
@@ -176,12 +229,15 @@ def render():
 # initial LCD state
 lcd.clear()
 lcd.set_backlight(True)
+serial = usb_cdc.data      # None if boot.py didn't enable it
 
 # ----------------------------
 # MAIN LOOP
 # ----------------------------
 while True:
     t = now_ms()
+    
+    poll_serial()
 
     # process every queued key event before updating the display
     event = matrix.events.get()
@@ -245,8 +301,13 @@ while True:
     if view == VIEW_SPLASH and (t - boot_time) > SPLASH_DURATION_MS:
         view = VIEW_CLOCK
         view_dirty = True
-    
+        
+    # clock refresh: redraw only when the displayed string would
+    # change (minute rollover or first sync) — not every pass
+    if view == VIEW_CLOCK and clock_string(t) != clock_shown:
+        view_dirty = True
+        
     # render
     if view_dirty:
-        render()
+        render(t)
         view_dirty = False
