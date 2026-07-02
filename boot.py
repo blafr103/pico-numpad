@@ -18,19 +18,24 @@ import board
 import digitalio
 import storage
 
+# configure GP2 as output, drive HIGH
 row0 = digitalio.DigitalInOut(board.GP2)
 row0.direction = digitalio.Direction.OUTPUT
 row0.value = True
 
+# configure GP12 as input with an internal pull-down resistor
 col0 = digitalio.DigitalInOut(board.GP12)
 col0.direction = digitalio.Direction.INPUT
 col0.pull = digitalio.Pull.DOWN
 
+# read GP12, check if NumLock is pressed
 numlock_held = col0.value
 
-# release pins so KeyMatrix can claim them in code.py
+# release in/out pins so KeyMatrix can claim them in code.py
 row0.deinit()
 col0.deinit()
 
+# If NumLock is not held, give CircuitPython write access to the filesystem so the firmware can update count.txt.
+# Otherwise, leave the default host-owned (development) mode unchanged.
 if not numlock_held:
-    storage.remount("/", readonly=False)  # allow firmware (CircuitPython) to update count.txt
+    storage.remount("/", readonly=False)
