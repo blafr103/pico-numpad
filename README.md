@@ -16,7 +16,7 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
   - Fn+1: Statistics view
   - Fn+2: PC stats view
 - Persistent lifetime key counter stored in onboard flash
-- Automatic LCD backlight/LED timeout after 60 seconds of inactivity
+- Automatic LCD backlight/LED timeout after 300 seconds of inactivity
 - Optional host companion script feeding local time and hardware
   stats (extensible key:value serial protocol)
 

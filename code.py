@@ -50,7 +50,7 @@ from i2c_pcf8574_interface import I2CPCF8574Interface
 # ----------------------------
 # CONSTANTS
 # ----------------------------
-IDLE_TIMEOUT_MS = 60_000
+IDLE_TIMEOUT_MS = 300_000
 LCD_COLS = 16
 COUNT_FILE = "/count.txt"
 FLUSH_EVERY = 100
@@ -249,7 +249,7 @@ def render(t):
         draw_line(1, "")
     elif view == VIEW_CLOCK:
         clock_shown = clock_string(t)
-        draw_line(0, "Clock")
+        draw_line(0, "Ottawa - Canada")
         draw_line(1, clock_shown)
     elif view == VIEW_STATS:
         draw_line(0, "Presses:")
@@ -352,3 +352,4 @@ while True:
     if view_dirty:
         render(t)
         view_dirty = False
+
