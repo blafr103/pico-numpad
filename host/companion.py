@@ -2,20 +2,21 @@
 # companion.py - host-side broadcaster for pico-numpad
 #
 # Sends over the Pico's data serial port (auto-detected):
-#   time:<epoch>                      on connect + every 30 s
-#   cpu:<util%>,<tempC>,<powerW>      every STATS_INTERVAL_S
-#   gpu:<util%>,<tempC>,<powerW>      every STATS_INTERVAL_S
-#   wx<i>:<LABEL>,<COND>,<TEMP>,<OFFMIN>   every WX_INTERVAL_S
-#     LABEL <=4 chars, COND <=6 chars, TEMP int C, OFFMIN =
-#     location's UTC offset minus host's, minutes (DST-correct,
-#     computed fresh via zoneinfo each broadcast)
-# Missing values sent as -1 (stats) or omitted line (weather).
+#   time:<epoch>                     on connect + every 30 s
+#   p{0-3}{a,b}:<16-char line>       every STATS_INTERVAL_S
+#     pre-formatted PC stat page rows; '*' renders as a degree
+#     symbol on the Pico. Pages: 0 overview, 1 memory, 2 clocks,
+#     3 voltages. Missing sensors render as '--'.
+#   wx<i>:<LABEL>,<COND>,<TEMP>,<OFFMIN>  every WX_INTERVAL_S
 #
 # Sources:
 #   stats  - LibreHardwareMonitor web server (localhost:8085),
-#            must be running as admin. Down -> stats skipped.
-#   weather- Environment Canada via the env_canada package
-#            (nearest site to each coordinate). Down -> wx skipped.
+#            running as admin. Down -> stat lines say 'LHM down'.
+#   weather- Environment Canada via env_canada. Down -> wx skipped.
+#
+# Sensor matching: hardware prefix + path kind + display name
+# (numeric indices shift between LHM versions). Names target this
+# PC (i7-13700K, RTX 4080, 2x Corsair DDR5); adjust for others.
 #
 # Deps: pip install pyserial requests env_canada
 # Auto-start: Task Scheduler -> pythonw.exe <path>\companion.py
@@ -39,7 +40,6 @@ LHM_URL = "http://localhost:8085/data.json"
 ADAFRUIT_VID = 0x239A
 HOME_TZ = ZoneInfo("America/Toronto")
 
-# label (<=4), (lat, lon), IANA timezone
 LOCATIONS = [
     ("OTT",  (45.42, -75.70),  "America/Toronto"),
     ("MTL",  (45.51, -73.57),  "America/Toronto"),
@@ -47,7 +47,6 @@ LOCATIONS = [
     ("PEMB", (45.83, -77.11),  "America/Toronto"),
 ]
 
-# EC condition string -> <=6 char display form; unknown -> truncate
 COND_MAP = {
     "sunny": "Sunny", "clear": "Clear",
     "mainly sunny": "Sunny", "mainly clear": "Clear",
@@ -86,7 +85,6 @@ def cond_short(raw):
 
 
 def tz_offset_min(tzname):
-    # location offset minus home offset, right now (DST-correct)
     now = datetime.now()
     loc = ZoneInfo(tzname).utcoffset(now.astimezone(ZoneInfo(tzname)))
     home = HOME_TZ.utcoffset(now.astimezone(HOME_TZ))
@@ -94,7 +92,6 @@ def tz_offset_min(tzname):
 
 
 def read_weather():
-    # returns list of (index, label, cond, temp, offset) or []
     out = []
     for i, ((label, _, tzname), st) in enumerate(zip(LOCATIONS, wx_stations)):
         try:
@@ -110,6 +107,8 @@ def read_weather():
     return out
 
 
+# ---------------- LHM stats -> formatted page lines ----------------
+
 def walk(node, out):
     for child in node.get("Children", []):
         walk(child, out)
@@ -117,34 +116,81 @@ def walk(node, out):
         out[node["SensorId"]] = (node.get("Text", ""), node.get("Value", ""))
 
 
-def parse_value(text):
+def parse_float(text):
     try:
-        return int(float(text.split()[0].replace(",", ".")))
+        return float(text.split()[0].replace(",", "."))
     except (ValueError, IndexError, AttributeError):
-        return -1
+        return None
 
 
-def read_stats():
+def stat_pages():
+    """Return dict message-key -> 16-char display line for pages 0-3.
+    '*' stands for the degree symbol (Pico substitutes at draw)."""
     try:
         tree = requests.get(LHM_URL, timeout=1).json()
     except (requests.RequestException, ValueError):
-        return None
+        return {f"p{p}{r}": "LHM down" if r == "a" else ""
+                for p in range(4) for r in "ab"}
+
     sensors = {}
     walk(tree, sensors)
 
     def find(prefix, kind, name):
         for sid, (text, val) in sensors.items():
             if sid.startswith(prefix) and kind in sid and text == name:
-                return parse_value(val)
-        return -1
+                return parse_float(val)
+        return None
+
+    def find_max(prefix, kind, name_prefix):
+        vals = [parse_float(v) for sid, (t, v) in sensors.items()
+                if sid.startswith(prefix) and kind in sid
+                and t.startswith(name_prefix)]
+        vals = [v for v in vals if v is not None]
+        return max(vals) if vals else None
+
+    def find_min(prefix, kind, name_suffix):
+        vals = [parse_float(v) for sid, (t, v) in sensors.items()
+                if sid.startswith(prefix) and kind in sid
+                and t.endswith(name_suffix)]
+        vals = [v for v in vals if v is not None]
+        return min(vals) if vals else None
+
+    def i(v):          # int display or --
+        return "--" if v is None else str(round(v))
+
+    def v3(v):         # 3-decimal voltage or --
+        return "--" if v is None else "{:.3f}".format(v)
+
+    cpu_util = find("/intelcpu/0", "/load/", "CPU Total")
+    cpu_temp = find("/intelcpu/0", "/temperature/", "CPU Package")
+    cpu_pwr  = find("/intelcpu/0", "/power/", "CPU Package")
+    gpu_util = find("/gpu-nvidia/0", "/load/", "GPU Core")
+    gpu_temp = find("/gpu-nvidia/0", "/temperature/", "GPU Core")
+    gpu_pwr  = find("/gpu-nvidia/0", "/power/", "GPU Package")
+
+    ram_util  = find("/ram", "/load/", "Memory")
+    dimm1     = find("/memory/dimm/1", "/temperature/", "DIMM #1")
+    dimm3     = find("/memory/dimm/3", "/temperature/", "DIMM #3")
+    vram_used = find("/gpu-nvidia/0", "/smalldata/", "GPU Memory Used")
+    vram_tot  = find("/gpu-nvidia/0", "/smalldata/", "GPU Memory Total")
+
+    pclk = find_max("/intelcpu/0", "/clock/", "P-Core")
+    eclk = find_max("/intelcpu/0", "/clock/", "E-Core")
+    gclk = find("/gpu-nvidia/0", "/clock/", "GPU Core")
+    tjd  = find_min("/intelcpu/0", "/temperature/", "Distance to TjMax")
+
+    vcore = find("/intelcpu/0", "/voltage/", "CPU Core")
+    vgpu  = find("/gpu-nvidia/0", "/voltage/", "GPU Core Voltage")
 
     return {
-        "cpu": (find("/intelcpu/0", "/load/", "CPU Total"),
-                find("/intelcpu/0", "/temperature/", "CPU Package"),
-                find("/intelcpu/0", "/power/", "CPU Package")),
-        "gpu": (find("/gpu-nvidia/0", "/load/", "GPU Core"),
-                find("/gpu-nvidia/0", "/temperature/", "GPU Core"),
-                find("/gpu-nvidia/0", "/power/", "GPU Package")),
+        "p0a": "C {}% {}* {}W".format(i(cpu_util), i(cpu_temp), i(cpu_pwr)),	# page 0 row a: CPU util/temp/power
+        "p0b": "G {}% {}* {}W".format(i(gpu_util), i(gpu_temp), i(gpu_pwr)),	# page 0 row b: GPU
+        "p1a": "R {}% {}* {}*".format(i(ram_util), i(dimm1), i(dimm3)),			# page 1: RAM util + DIMM temps
+        "p1b": "V {}/{}MB".format(i(vram_used), i(vram_tot)),					# VRAM used/total
+        "p2a": "C {} E{} MHz".format(i(pclk), i(eclk)),							# page 2: CPU P/E max clock
+        "p2b": "G {}MHz Tj-{}".format(i(gclk), i(tjd)),							# GPU clock + TjMax dist
+        "p3a": "Vc {}  Vg {}".format(v3(vcore), v3(vgpu)),						# page 3: core voltages
+        "p3b": "CPU {}W GPU {}W".format(i(cpu_pwr), i(gpu_pwr)),				# CPU/GPU package powers
     }
 
 
@@ -165,14 +211,12 @@ while True:
                     s.write(f"time:{local_epoch()}\n".encode())
                     last_time = now
                 if now - last_wx >= WX_INTERVAL_S or last_wx == 0:
-                    for i, label, cond, temp, off in read_weather():
-                        s.write(f"wx{i}:{label},{cond},{temp},{off}\n"
+                    for i_, label, cond, temp, off in read_weather():
+                        s.write(f"wx{i_}:{label},{cond},{temp},{off}\n"
                                 .encode())
                     last_wx = now
-                stats = read_stats()
-                if stats:
-                    for key, (util, temp, pwr) in stats.items():
-                        s.write(f"{key}:{util},{temp},{pwr}\n".encode())
+                for key, line in stat_pages().items():
+                    s.write(f"{key}:{line}\n".encode())
                 time.sleep(STATS_INTERVAL_S)
     except (serial.SerialException, OSError):
         print("disconnected, retrying")

@@ -1,38 +1,35 @@
 # ------------------------------------------------------------------
-# Production Version - 17-key USB numpad + LCD (Phase 5)
+# Production Version - 17-key USB numpad + LCD (Phase 6)
 # Hardware: Raspberry Pi Pico W (RP2040), CircuitPython 9.2.1
 #   Hand-wired 5x4 matrix, one diode per key
 #   (anode toward row, cathode toward column)
 #   Rows GP2-GP6, Cols GP12-GP15, LED GP11
 #   16x2 LCD on PCF8574 I2C backpack @ 0x27, SCL GP1, SDA GP0
 #
-# Phase 5 adds:
-#   - Weather on the clock view, row 0: "LLLL CCCCCC TTT°" for one
-#     of 4 preset locations, fed by the host (wx0..wx3 messages).
-#     Row 1 shows date + time in the DISPLAYED location's timezone
-#     (host sends offset minutes, DST-correct). Fn+0 switches to
-#     the clock view; pressed again while already there, it cycles
-#     the location.
-#   - Staleness: weather older than 30 min shows "LABEL --";
-#     PC stats older than 15 s show "no data".
+# Phase 6 adds:
+#   - PC stats expanded to 4 pages; Fn+2 switches to the stats
+#     view, pressed again cycles pages: 0 overview (util/temp/
+#     power), 1 memory (RAM util + DIMM temps, VRAM), 2 clocks
+#     (P/E-core max, GPU, TjMax distance), 3 voltages + powers.
+#   - Stat rows arrive PRE-FORMATTED from the host (p{0-3}{a,b}
+#     messages, <=16 chars); the Pico renders them verbatim except
+#     '*' -> degree symbol. Adding/changing a page is host-only.
 #
-# Phase 4: PC stats view (Fn+2): CPU and GPU utilization %,
-#   temperature, and package power. '--' for sensors the host
-#   reports missing (-1).
-# Phase 3: host serial channel over usb_cdc.data (requires boot.py
-#   enabling it; power cycle after changing boot.py).
-#   Protocol: newline-terminated ASCII "key:value" lines; Pico is a
-#   pure listener, host (host/companion.py) broadcasts unsolicited.
-#   Handled: time:<epoch> (local), cpu/gpu:<util>,<temp>,<power>,
-#   wx<i>:<label>,<cond>,<temp>,<offsetmin>.
-#   Clock free-runs between syncs (epoch anchored to monotonic ms);
-#   re-anchors on every time message. UNKNOWN until first sync;
-#   time lost at power-off (no battery RTC on RP2040).
+# Phase 5: weather on the clock view row 0 (wx0..wx3 messages,
+#   4 preset locations), row 1 date+time in the displayed
+#   location's timezone (host sends DST-correct offset minutes).
+#   Fn+0 switches to clock; pressed again cycles the location.
+#   Staleness: weather > 30 min -> "LABEL --", stats > 15 s ->
+#   "no data".
+# Phase 3: host serial channel over usb_cdc.data (boot.py enables
+#   it; power cycle after changing boot.py). Newline-terminated
+#   ASCII "key:value"; Pico is a pure listener. Clock free-runs
+#   between time syncs; UNKNOWN until first sync; no battery RTC.
 # Phase 2: NumLock momentary Fn (Fn+1 press stats), splash on boot,
 #   lifetime press counter in /count.txt, batched flushes, boot.py
 #   dev-mode via NumLock at plug-in.
 # Phase 1: no sleep() in loop, dirty-flag rendering, fixed-width
-#   overwrites, edge-triggered backlight, 60 s idle.
+#   overwrites, edge-triggered backlight, 300 s idle.
 # ------------------------------------------------------------------
 
 import time
@@ -52,7 +49,7 @@ from i2c_pcf8574_interface import I2CPCF8574Interface
 # ----------------------------
 # CONSTANTS
 # ----------------------------
-IDLE_TIMEOUT_MS = 60_000
+IDLE_TIMEOUT_MS = 300_000
 LCD_COLS = 16
 COUNT_FILE = "/count.txt"
 FLUSH_EVERY = 100
@@ -60,6 +57,7 @@ FLUSH_EVERY = 100
 WX_SLOTS = 4
 WX_STALE_MS = 30 * 60_000
 STATS_STALE_MS = 15_000
+STAT_PAGES = 4
 
 FN_KEY = 0            # key_number of NumLock
 # LCD views
@@ -180,8 +178,10 @@ rx_buf = b""            # partial-line accumulator for serial input
 # ----------------------------
 # PC STATS STATE
 # ----------------------------
-pc_stats = {"cpu": None, "gpu": None}   # each: (util, temp, power)
-stats_rx_ms = 0                          # receipt time for staleness
+# host-formatted display lines, [page][row]; '*' -> degree at draw
+stat_lines = [["", ""] for _ in range(STAT_PAGES)]
+stats_rx_ms = 0          # receipt time for staleness
+stat_page = 0            # page shown on the PC stats view
 
 # ----------------------------
 # WEATHER STATE
@@ -203,15 +203,17 @@ def handle_message(key, value):
             return
         ms_at_sync = now_ms()
         synced = True
-    elif key in ("cpu", "gpu"):
+    elif len(key) == 3 and key[0] == "p" and key[2] in "ab":
+        # p{page}{row}: pre-formatted stat line from the host
         try:
-            util, temp, pwr = (int(x) for x in value.split(","))
+            page = int(key[1])
         except ValueError:
             return
-        pc_stats[key] = (util, temp, pwr)
-        stats_rx_ms = now_ms()
-        if view == VIEW_PCSTATS:
-            view_dirty = True
+        if 0 <= page < STAT_PAGES:
+            stat_lines[page][0 if key[2] == "a" else 1] = value
+            stats_rx_ms = now_ms()
+            if view == VIEW_PCSTATS and page == stat_page:
+                view_dirty = True
     elif key.startswith("wx"):
         try:
             slot = int(key[2:])
@@ -249,15 +251,11 @@ def poll_serial():
 
 DEGREE = chr(0xDF)      # degree symbol in the HD44780 character ROM
 
-def fmt(v, suffix):
-    return "--" + suffix if v < 0 else str(v) + suffix
-
-def stats_line(label, s, t):
-    if s is None or (t - stats_rx_ms) > STATS_STALE_MS:
-        return label + " no data"
-    util, temp, pwr = s
-    return "{} {} {} {}".format(
-        label, fmt(util, "%"), fmt(temp, DEGREE), fmt(pwr, "W"))
+def stat_row(row, t):
+    if (t - stats_rx_ms) > STATS_STALE_MS or stats_rx_ms == 0:
+        return "no data" if row == 0 else ""
+    # '*' is the host's placeholder for the degree symbol
+    return stat_lines[stat_page][row].replace("*", DEGREE)
 
 def weather_line(t):
     entry = wx[wx_index]
@@ -282,9 +280,17 @@ def clock_rows(t):
     # the renderer compare/draw the same thing
     return (weather_line(t), clock_string(t))
 
+def pcstats_rows(t):
+    return (stat_row(0, t), stat_row(1, t))
+
+# overwrite an entire LCD row to avoid clearing the display
+def draw_line(row, text):
+    lcd.set_cursor_pos(row, 0)
+    lcd.print((text + " " * LCD_COLS)[:LCD_COLS])
+
 # draw the active screen
 def render(t):
-    global clock_shown
+    global clock_shown, pcstats_shown
     if view == VIEW_SPLASH:
         draw_line(0, "pico-numpad")
         draw_line(1, "")
@@ -296,13 +302,11 @@ def render(t):
         draw_line(0, "Presses:")
         draw_line(1, str(press_count))
     elif view == VIEW_PCSTATS:
-        draw_line(0, stats_line("C", pc_stats["cpu"], t))
-        draw_line(1, stats_line("G", pc_stats["gpu"], t))
+        pcstats_shown = pcstats_rows(t)
+        draw_line(0, pcstats_shown[0])
+        draw_line(1, pcstats_shown[1])
 
-# overwrite an entire LCD row to avoid clearing the display
-def draw_line(row, text):
-    lcd.set_cursor_pos(row, 0)
-    lcd.print((text + " " * LCD_COLS)[:LCD_COLS])
+pcstats_shown = ("", "")
 
 # ----------------------------
 # INIT DISPLAY
@@ -333,8 +337,9 @@ while True:
                 if event.key_number == FN_KEY:
                     fn_down = True
                     fn_used = False
-                # Fn shortcut: switch view without sending a key;
-                # Fn+0 on the clock view cycles the weather location
+                # Fn shortcut: switch view without sending a key.
+                # Repeated on the view's own key: clock cycles the
+                # weather location, PC stats cycles the page.
                 elif fn_down and fn_action is not None:
                     fn_used = True
                     consumed.add(event.key_number)
@@ -342,6 +347,8 @@ while True:
                         view = fn_action
                     elif fn_action == VIEW_CLOCK:
                         wx_index = (wx_index + 1) % WX_SLOTS
+                    elif fn_action == VIEW_PCSTATS:
+                        stat_page = (stat_page + 1) % STAT_PAGES
                     view_dirty = True
                 else:
                     keyboard.press(keycode)
@@ -388,6 +395,11 @@ while True:
     # clock refresh: redraw only when either displayed row would
     # change (minute rollover, sync, weather update, staleness edge)
     if view == VIEW_CLOCK and clock_rows(t) != clock_shown:
+        view_dirty = True
+
+    # PC stats refresh: same pattern (new host lines, page change,
+    # staleness edge)
+    if view == VIEW_PCSTATS and pcstats_rows(t) != pcstats_shown:
         view_dirty = True
 
     # render

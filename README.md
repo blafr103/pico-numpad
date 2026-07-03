@@ -11,12 +11,16 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
   - Clock + weather (current conditions and local time for one of
     four preset Canadian locations; date + time synced from the host)
   - Lifetime keypress statistics
-  - PC stats (CPU/GPU utilization, temperature, and package power)
+  - PC stats, 4 cycling pages: overview (CPU/GPU utilization,
+    temperature, package power), memory (RAM utilization, DIMM
+    temperatures, VRAM), clocks (P/E-core max, GPU, TjMax
+    distance), and voltages
 - NumLock doubles as a momentary Fn key:
   - Fn+0: Clock view; pressed again while on it, cycles the
     weather location
   - Fn+1: Statistics view
-  - Fn+2: PC stats view
+  - Fn+2: PC stats view; pressed again while on it, cycles the
+    stat pages
 - Persistent lifetime key counter stored in onboard flash
 - Automatic LCD backlight/LED timeout after 300 seconds of inactivity
 - Optional host companion script feeding local time, hardware stats,
@@ -109,12 +113,14 @@ the host sends each location's UTC-offset delta computed fresh with
 30 minutes displays as stale (`LABEL --`); PC stats older than 15
 seconds display as "no data".
 
-PC stats are read from LibreHardwareMonitor's JSON endpoint on the
-host and forwarded as integers; a sensor the host cannot find is sent
-as -1 and displayed as `--`. Sensor matching uses hardware prefix and
-display name rather than numeric indices, which shift between LHM
-versions; the current names target this machine's CPU/GPU and need
-adjusting for other hardware.
+PC stat rows are composed entirely on the host: companion.py reads
+LibreHardwareMonitor's JSON endpoint, selects sensors by hardware
+prefix and display name (numeric sensor indices shift between LHM
+versions), and sends each page row as a finished 16-character line.
+The Pico renders these verbatim — apart from substituting `*` with
+the LCD's degree symbol — so adding or reworking a stat page is a
+host-only change. Missing sensors render as `--`; the sensor names
+target this machine's hardware and need adjusting for others.
 
 The lifetime keypress counter is stored in `/count.txt`. To minimize
 flash wear, writes are batched (100 keypresses by default) and flushed
