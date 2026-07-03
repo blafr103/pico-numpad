@@ -3,6 +3,10 @@
 Hand-wired 17-key USB numpad on a Raspberry Pi Pico W. CircuitPython,
 diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 
+<p align="center">
+  <img src="images/numpadIMG.jpg" alt="pico-numpad" width="600">
+</p>
+
 ## Features
 
 - USB HID numeric keypad
@@ -33,7 +37,7 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 - Optional host companion script feeding local time, hardware stats,
   and Environment Canada weather (extensible key:value serial
   protocol)
-  
+
 ### LED behavior
 
 - LED brightness is adjustable in 12.5% increments using Fn + '+' and Fn + '-'.
