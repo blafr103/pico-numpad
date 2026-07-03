@@ -41,6 +41,8 @@
 #   overwrites, edge-triggered backlight, 300 s idle.
 # ------------------------------------------------------------------
 
+import pwmio
+
 import time
 import board
 import busio
@@ -68,15 +70,21 @@ WX_STALE_MS = 30 * 60_000
 STATS_STALE_MS = 15_000
 STAT_PAGES = 4
 
-CALC_MAX_EXPR = 64      # hard cap on expression length
+CALC_MAX_EXPR = 64		# hard cap on expression length
 
-FN_KEY = 0            # key_number of NumLock
+FN_KEY = 0				# key_number of NumLock
 # LCD views
 VIEW_STATS = 1
 VIEW_CLOCK = 2
 VIEW_SPLASH = 3
 VIEW_PCSTATS = 4
 VIEW_CALC = 5
+
+# key-leds (white)
+LED_STEP = 8192			# ~% per press
+LED_MIN = 0
+LED_MAX = 57343
+
 
 # ----------------------------
 # TIME BASE
@@ -115,6 +123,44 @@ KEYS = {
 }
 
 # ----------------------------
+# STORAGE
+# ----------------------------
+# load persistent lifetime press counter
+def load_settings():
+    try:
+        with open(COUNT_FILE) as f:
+            lines = f.read().splitlines()
+
+        count = int(lines[0])
+
+        if len(lines) > 1:
+            brightness = int(lines[1])
+            brightness = max(LED_MIN, min(LED_MAX, brightness))
+        else:
+            # old file format
+            brightness = LED_MAX
+
+        return count, brightness
+
+    except (OSError, ValueError, IndexError):
+        return 0, LED_MAX
+
+def save_settings():
+    global unsaved
+    try:
+        with open(COUNT_FILE, "w") as f:
+            f.write("{}\n{}".format(
+                press_count,
+                led_brightness
+            ))
+        unsaved = 0
+    except OSError:
+        pass            # ignore writes when storage is read-only (dev mode)
+
+press_count, led_brightness = load_settings()
+unsaved = 0
+
+# ----------------------------
 # HARDWARE INIT
 # ----------------------------
 # initialize key matrix scanner
@@ -127,38 +173,26 @@ matrix = keypad.KeyMatrix(
 
 keyboard = Keyboard(usb_hid.devices)
 
-led = digitalio.DigitalInOut(board.GP11)
-led.direction = digitalio.Direction.OUTPUT
-led.value = True
+# key-leds (white)
+# replace DigitalInOut with PWMOut
+led = pwmio.PWMOut(
+    board.GP11,
+    frequency=1000,
+    duty_cycle=led_brightness
+)
+#led = digitalio.DigitalInOut(board.GP11)
+#led.direction = digitalio.Direction.OUTPUT
+#led.value = True
+def update_led():
+    if backlight_on:
+        led.duty_cycle = led_brightness
+    else:
+        led.duty_cycle = 0
 
 i2c = busio.I2C(scl=board.GP1, sda=board.GP0)
 lcd = LCD(I2CPCF8574Interface(i2c, 0x27), num_rows=2, num_cols=LCD_COLS)
 
 serial = usb_cdc.data      # None if boot.py didn't enable it
-
-# ----------------------------
-# STORAGE
-# ----------------------------
-# load persistent lifetime press counter
-def load_count():
-    try:
-        with open(COUNT_FILE) as f:
-            return int(f.read())
-    except (OSError, ValueError):
-        return 0        # missing or invalid file
-
-def save_count():
-    global unsaved
-    try:
-        with open(COUNT_FILE, "w") as f:
-            f.write(str(press_count))
-        unsaved = 0
-    except OSError:
-        pass            # ignore writes when storage is read-only (dev mode)
-
-press_count = load_count()
-unsaved = 0             # Presses since last save
-
 
 # ----------------------------
 # STATE
@@ -474,6 +508,23 @@ while True:
                 if event.key_number == FN_KEY:
                     fn_down = True
                     fn_used = False
+                # Fn + '+' = brighter
+                elif fn_down and event.key_number == 7:
+                    fn_used = True
+                    consumed.add(event.key_number)
+
+                    led_brightness = min(LED_MAX, led_brightness + LED_STEP)
+                    update_led()
+                    save_settings()
+
+                # Fn + '-' = dimmer
+                elif fn_down and event.key_number == 3:
+                    fn_used = True
+                    consumed.add(event.key_number)
+
+                    led_brightness = max(LED_MIN, led_brightness - LED_STEP)
+                    update_led()
+                    save_settings()
                 # Fn shortcut: switch view without sending a key.
                 # Repeated on the view's own key: clock cycles the
                 # weather location, PC stats cycles the page,
@@ -519,20 +570,23 @@ while True:
 
     # save periodically to reduce flash writes
     if unsaved >= FLUSH_EVERY:
-        save_count()
+        save_settings()
 
     # handle idle backlight and save before sleeping
     idle = (t - last_activity) >= IDLE_TIMEOUT_MS
     if idle and backlight_on:
         lcd.set_backlight(False)
-        led.value = False
+
         backlight_on = False
+        update_led()
+
         if unsaved:
-            save_count()
+            save_settings()
     elif not idle and not backlight_on:
         lcd.set_backlight(True)
-        led.value = True
+
         backlight_on = True
+        update_led()
 
     # splash transition
     if view == VIEW_SPLASH and (t - boot_time) > SPLASH_DURATION_MS:
