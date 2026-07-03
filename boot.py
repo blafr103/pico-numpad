@@ -40,3 +40,4 @@ col0.deinit()
 # Otherwise, leave the default host-owned (development) mode unchanged.
 if not numlock_held:
     storage.remount("/", readonly=False)
+

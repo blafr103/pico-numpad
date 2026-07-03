@@ -8,17 +8,20 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 - USB HID numeric keypad
 - Event-driven matrix scanning (`keypad.KeyMatrix`)
 - 16x2 LCD with switchable views:
-  - Clock (date + time, synced from the host over USB serial)
+  - Clock + weather (current conditions and local time for one of
+    four preset Canadian locations; date + time synced from the host)
   - Lifetime keypress statistics
   - PC stats (CPU/GPU utilization, temperature, and package power)
 - NumLock doubles as a momentary Fn key:
-  - Fn+0: Clock view
+  - Fn+0: Clock view; pressed again while on it, cycles the
+    weather location
   - Fn+1: Statistics view
   - Fn+2: PC stats view
 - Persistent lifetime key counter stored in onboard flash
 - Automatic LCD backlight/LED timeout after 300 seconds of inactivity
-- Optional host companion script feeding local time and hardware
-  stats (extensible key:value serial protocol)
+- Optional host companion script feeding local time, hardware stats,
+  and Environment Canada weather (extensible key:value serial
+  protocol)
 
 ## Hardware
 
@@ -40,16 +43,20 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 3. Install `adafruit_hid` from the
    [CircuitPython 9.x library bundle](https://circuitpython.org/libraries)
    into `lib/`.
-4. Optional, for the clock and PC stats: `pip install pyserial requests`
-   on the PC and run `python host/companion.py`. The pad is fully
-   functional without it; the clock shows UNKNOWN and PC stats show
-   "no data" until first contact.
+4. Optional, for the clock, weather, and PC stats:
+   `pip install pyserial requests env_canada` on the PC and run
+   `python host/companion.py`. The pad is fully functional without
+   it; the clock shows UNKNOWN, weather shows "no weather", and PC
+   stats show "no data" until first contact.
    - The Pico exposes two serial ports; the script auto-detects
      the data port, or set PORT in the script manually.
    - PC stats additionally require
      [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
      running as administrator with its web server enabled
-     (Options → Remote Web Server → Run). Time works without it.
+     (Options → Remote Web Server → Run). Time and weather work
+     without it.
+   - Weather locations are configured in companion.py as
+     label + coordinates + IANA timezone.
    - For hands-off startup, run both at logon: LibreHardwareMonitor
      via its own startup option, and companion.py via Task Scheduler
      (`pythonw.exe <path>\companion.py`).
@@ -84,22 +91,30 @@ tapping a digit while held switches views without typing it. A plain
 NumLock tap is deferred until release so tap and hold can be
 distinguished without affecting normal typing.
 
-Time and PC stats come from an optional host script
+Time, weather, and PC stats come from an optional host script
 (`host/companion.py`) over a second USB CDC serial port enabled in
 `boot.py`. The protocol is newline-terminated ASCII `key:value` lines;
 the Pico is a pure listener and the host broadcasts unsolicited (time
-on connect and every 30 s, stats every 2 s). The clock free-runs on
-the crystal between syncs and re-anchors on every message, bounding
-drift to one broadcast interval. The RP2040 has no battery-backed RTC,
-so time is lost at power-off and shows UNKNOWN until the first sync.
+on connect and every 30 s, stats every 2 s, weather every 10 min).
+The clock free-runs on the crystal between syncs and re-anchors on
+every message, bounding drift to one broadcast interval. The RP2040
+has no battery-backed RTC, so time is lost at power-off and shows
+UNKNOWN until the first sync.
+
+Weather comes from Environment Canada via the `env_canada` package
+(nearest site to each configured coordinate). The clock view shows
+one location's conditions on row 0 and its local date/time on row 1;
+the host sends each location's UTC-offset delta computed fresh with
+`zoneinfo`, so DST is handled entirely host-side. Weather older than
+30 minutes displays as stale (`LABEL --`); PC stats older than 15
+seconds display as "no data".
 
 PC stats are read from LibreHardwareMonitor's JSON endpoint on the
 host and forwarded as integers; a sensor the host cannot find is sent
 as -1 and displayed as `--`. Sensor matching uses hardware prefix and
 display name rather than numeric indices, which shift between LHM
 versions; the current names target this machine's CPU/GPU and need
-adjusting for other hardware. Last-received values persist on screen
-if the host stops sending.
+adjusting for other hardware.
 
 The lifetime keypress counter is stored in `/count.txt`. To minimize
 flash wear, writes are batched (100 keypresses by default) and flushed
