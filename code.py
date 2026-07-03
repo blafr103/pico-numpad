@@ -81,9 +81,9 @@ VIEW_PCSTATS = 4
 VIEW_CALC = 5
 
 # key-leds (white)
-LED_STEP = 8192			# ~% per press
+LED_STEP = 8192			# 12.5~% per press
 LED_MIN = 0
-LED_MAX = 57343
+LED_MAX = 65535
 
 
 # ----------------------------
@@ -125,7 +125,7 @@ KEYS = {
 # ----------------------------
 # STORAGE
 # ----------------------------
-# load persistent lifetime press counter
+# load persistent lifetime press counter and led brightness state
 def load_settings():
     try:
         with open(COUNT_FILE) as f:
