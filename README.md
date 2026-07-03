@@ -25,11 +25,20 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
     stat pages
   - Fn+2: Calculator view; pressed again while on it, clears
   - Fn+3: Statistics view
-- Persistent lifetime key counter stored in onboard flash
+  - Fn+'+': Increase keypad LED brightness
+  - Fn+'-': Decrease keypad LED brightness
+- Persistent lifetime key counter and LED brightness stored in onboard flash
+- Adjustable keypad LED brightness (Fn + '+' / Fn + '-'), persisted across power cycles
 - Automatic LCD backlight/LED timeout after 300 seconds of inactivity
 - Optional host companion script feeding local time, hardware stats,
   and Environment Canada weather (extensible key:value serial
   protocol)
+  
+### LED behavior
+
+- LED brightness is adjustable in 12.5% increments using Fn + '+' and Fn + '-'.
+- Brightness is remembered across power cycles.
+- The LED turns off together with the LCD backlight after the inactivity timeout and is restored to the saved brightness when activity resumes.
 
 ## Hardware
 
@@ -46,8 +55,7 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 1. Flash CircuitPython 9.x to the Pico.
 2. Copy `code.py`, `boot.py`, and `lib/` to the CIRCUITPY drive,
    then power cycle (`boot.py` changes only apply at power-up).
-   - On first boot, the firmware creates `/count.txt` to store the
-     lifetime keypress count.
+   - On first boot, the firmware creates `/count.txt` to store persistent settings (currently the lifetime keypress count and LED brightness).
 3. Install `adafruit_hid` from the
    [CircuitPython 9.x library bundle](https://circuitpython.org/libraries)
    into `lib/`.
@@ -139,9 +147,10 @@ the LCD's degree symbol — so adding or reworking a stat page is a
 host-only change. Missing sensors render as `--`; the sensor names
 target this machine's hardware and need adjusting for others.
 
-The lifetime keypress counter is stored in `/count.txt`. To minimize
-flash wear, writes are batched (100 keypresses by default) and flushed
-when the device transitions to the idle state.
+Persistent settings (currently the lifetime keypress count and LED brightness) 
+are stored in `/count.txt`. To minimize flash wear, writes are batched 
+(100 keypresses by default) and also occur immediately after brightness 
+changes and when the device transitions to the idle state.
 
 ## Tools
 

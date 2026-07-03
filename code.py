@@ -6,39 +6,33 @@
 #   Rows GP2-GP6, Cols GP12-GP15, LED GP11
 #   16x2 LCD on PCF8574 I2C backpack @ 0x27, SCL GP1, SDA GP0
 #
-# Phase 7 adds:
-#   - Calculator view (Fn+3): expression entry with PEMDAS.
-#     Row 0 shows the expression as typed (scrolls left past 16
-#     chars); row 1 stays blank until Enter, then shows =result.
-#     Evaluation: tokenize, fold * and / left-to-right, then sum
-#     +/- terms. Trailing operator ignored. Divide-by-zero or a
-#     malformed number shows Error; next digit clears. After a
-#     result, a digit starts fresh and an operator continues from
-#     the result. Results wider than the row use scientific
-#     notation. Fn+3 again = clear; leaving the view also clears.
-#     Digits/operators are CAPTURED in this view (nothing to HID).
-#   - Input routing layer: each view either passes key events to
-#     HID (default) or captures them (calculator). Captured keys'
-#     release edges are suppressed via the 'consumed' set, so a
-#     view switch mid-hold cannot leak a stray HID release.
+# Features:
+#   • USB HID numeric keypad with event-driven matrix scanning
+#     (keypad.KeyMatrix)
+#   • LCD interface with switchable views:
+#       - Clock + Environment Canada weather (4 locations)
+#       - PC hardware statistics (4 pages)
+#       - Calculator (operator precedence, local input capture)
+#       - Lifetime keypress statistics
+#   • NumLock functions as a momentary Fn modifier:
+#       - View selection and cycling
+#       - LED brightness adjustment (Fn+'+' / Fn+'-')
+#   • Adjustable PWM keypad LED brightness with persistent storage
+#   • Persistent settings stored in /count.txt:
+#       - Lifetime keypress counter
+#       - LED brightness
+#   • Automatic LCD backlight and LED timeout after inactivity
+#   • Optional host companion over USB CDC for:
+#       - Time synchronization
+#       - Weather
+#       - PC hardware monitoring
 #
-# Phase 6: PC stats view (Fn+2), 4 cycling pages (overview,
-#   memory, clocks, voltages); rows arrive PRE-FORMATTED from the
-#   host (p{0-3}{a,b}), '*' -> degree symbol; Fn+2 again cycles.
-# Phase 5: weather on the clock view row 0 (wx0..wx3, 4 preset
-#   locations), row 1 date+time in the displayed location's
-#   timezone (host sends DST-correct offset minutes). Fn+0 again
-#   cycles the location. Staleness: weather > 30 min -> "LABEL --",
-#   stats > 15 s -> "no data".
-# Phase 3: host serial channel over usb_cdc.data (boot.py enables
-#   it; power cycle after changing boot.py). Newline-terminated
-#   ASCII "key:value"; Pico is a pure listener. Clock free-runs
-#   between time syncs; UNKNOWN until first sync; no battery RTC.
-# Phase 2: NumLock momentary Fn (Fn+1 press stats), splash on boot,
-#   lifetime press counter in /count.txt, batched flushes, boot.py
-#   dev-mode via NumLock at plug-in.
-# Phase 1: no sleep() in loop, dirty-flag rendering, fixed-width
-#   overwrites, edge-triggered backlight, 300 s idle.
+# Design highlights:
+#   • Edge-driven HID press/release handling
+#   • Dirty-flag LCD rendering (no continuous redraws)
+#   • Event-driven keypad scanning in firmware
+#   • Host performs formatting and data collection; Pico acts as a
+#     lightweight display/input device
 # ------------------------------------------------------------------
 
 import pwmio
@@ -63,16 +57,19 @@ from i2c_pcf8574_interface import I2CPCF8574Interface
 IDLE_TIMEOUT_MS = 300_000
 LCD_COLS = 16
 COUNT_FILE = "/count.txt"
-FLUSH_EVERY = 100
+FLUSH_EVERY = 100 # save cycle every 100 presses
 
 WX_SLOTS = 4
 WX_STALE_MS = 30 * 60_000
 STATS_STALE_MS = 15_000
 STAT_PAGES = 4
 
-CALC_MAX_EXPR = 64		# hard cap on expression length
+CALC_MAX_EXPR = 64		# hard cap on calc expression length
 
 FN_KEY = 0				# key_number of NumLock
+FN_BRIGHT_UP = 7       # '+' key: Fn combo raises LED brightness
+FN_BRIGHT_DOWN = 3     # '-' key: Fn combo lowers LED brightness
+
 # LCD views
 VIEW_STATS = 1
 VIEW_CLOCK = 2
@@ -508,23 +505,23 @@ while True:
                 if event.key_number == FN_KEY:
                     fn_down = True
                     fn_used = False
-                # Fn + '+' = brighter
-                elif fn_down and event.key_number == 7:
+                # Fn + '+' = increase LED brightness
+                elif fn_down and event.key_number == FN_BRIGHT_UP:
                     fn_used = True
                     consumed.add(event.key_number)
 
                     led_brightness = min(LED_MAX, led_brightness + LED_STEP)
                     update_led()
-                    save_settings()
 
-                # Fn + '-' = dimmer
-                elif fn_down and event.key_number == 3:
+
+                # Fn + '-' = reduce LED brightness
+                elif fn_down and event.key_number == FN_BRIGHT_DOWN:
                     fn_used = True
                     consumed.add(event.key_number)
 
                     led_brightness = max(LED_MIN, led_brightness - LED_STEP)
                     update_led()
-                    save_settings()
+
                 # Fn shortcut: switch view without sending a key.
                 # Repeated on the view's own key: clock cycles the
                 # weather location, PC stats cycles the page,
