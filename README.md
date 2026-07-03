@@ -11,7 +11,7 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
         <b>Finished Device</b>
       </td>
       <td align="center">
-        <img src="images/numpadWiring.jpg" width="420"><br>
+        <img src="images/numpadWiring.jpg" width="380"><br>
         <b>Hand-Wired Matrix</b>
       </td>
     </tr>
