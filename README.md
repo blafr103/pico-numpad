@@ -1,22 +1,12 @@
 # pico-numpad
 
-Hand-wired 17-key USB numpad on a Raspberry Pi Pico W. CircuitPython,
-diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
+Custom-built 17-key USB HID numpad powered by a Raspberry Pi Pico W,
+featuring a hand-wired switch matrix, 16×2 LCD interface,
+host-integrated PC monitoring, weather display, and onboard calculator.
 
-<p align="center">
-  <table align="center">
-    <tr>
-      <td align="center" width="450" valign="top">
-        <img src="images/numpadIMG.jpg" width="420"><br>
-        <b>Finished Device</b>
-      </td>
-      <td align="center" width="470" valign="top">
-        <img src="images/numpadWiring_crop.jpg" width="470"><br>
-        <b>Hand-Wired Matrix</b>
-      </td>
-    </tr>
-  </table>
-</p>
+The enclosure, electronics, and firmware were designed specifically for
+this project using CircuitPython with event-driven matrix scanning via
+`keypad.KeyMatrix`.
 
 ## Features
 
@@ -42,28 +32,91 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
   - Fn+3: Statistics view
   - Fn+'+': Increase keypad LED brightness
   - Fn+'-': Decrease keypad LED brightness
-- Persistent lifetime key counter and LED brightness stored in onboard flash
+- Persistent settings (lifetime key counter and LED brightness) are stored in the
+CircuitPython filesystem (`/count.txt` on internal flash).
 - Adjustable keypad LED brightness (Fn + '+' / Fn + '-'), persisted across power cycles
 - Automatic LCD backlight/LED timeout after 300 seconds of inactivity
-- Optional host companion script feeding local time, hardware stats,
-  and Environment Canada weather (extensible key:value serial
-  protocol)
+- Optional Python companion application providing local time,
+weather (Environment Canada API), and PC hardware monitoring.
 
-### LED behavior
+<p align="center">
+  <table align="center">
+    <tr>
+      <td align="center" width="450" valign="top">
+        <img src="images/numpadIMG.jpg" width="420"><br>
+        <b>Finished Device</b>
+      </td>
+      <td align="center" width="470" valign="top">
+        <img src="images/numpadWiring_crop.jpg" width="470"><br>
+        <b>Hand-Wired Matrix</b>
+      </td>
+    </tr>
+  </table>
+</p>
 
-- LED brightness is adjustable in 12.5% increments using Fn + '+' and Fn + '-'.
-- Brightness is remembered across power cycles.
-- The LED turns off together with the LCD backlight after the inactivity timeout and is restored to the saved brightness when activity resumes.
+## Physical Construction
+
+This prototype is entirely hand-built rather than assembled on a PCB. The
+hand-wired construction allowed the electrical design, firmware, and enclosure
+to be developed and validated prior to designing a dedicated PCB revision, 
+which is planned as the next major hardware revision.
+
+### Enclosure
+
+- Designed from scratch in Autodesk Fusion 360
+- 3D printed on a Bambu Lab X1 Carbon using PETG for the structural components and translucent polycarbonate (PC) for the light-diffusing enclosure 
+- Two-piece printed enclosure with integrated LCD mount and switch plate
+- Translucent white PC diffuses the per-key LEDs
+
+### Switches & Keycaps
+
+- Switches: Gateron KS-9 G Pro Black linear switches
+- Keycaps: Ranked POM Jelly Premium Translucent keycaps
+
+### Key Matrix
+
+The keypad is wired as a 5×4 switch matrix with one diode per key to eliminate
+ghosting.
+
+Color coding throughout the wiring:
+
+| Color | Function |
+| :--- | :--- |
+| **Red** | Matrix columns |
+| **Yellow** | Matrix rows |
+| **Orange** | LED power distribution |
+| **Black** | LED ground |
+
+Each switch includes a **1N4148** diode (anode toward the row, cathode toward
+the column), matching the firmware configuration
+(`columns_to_anodes=False`). The matrix layout and diode orientation were
+verified using the included `tools/matrix_map_test.py` and
+`tools/diode_test.py` utilities.
+
+### Lighting
+
+- One discrete white LED beneath each key
+- LEDs share a common PWM-controlled supply, with each LED using its own **100 Ω** current-limiting resistor
+- Brightness is adjustable in 12.5% increments using **Fn + '+'** and **Fn + '-'**
+- The selected brightness is persisted across power cycles
+- LEDs turn off together with the LCD backlight after the inactivity timeout and are restored automatically on activity
+
+### Electronics
+
+- Raspberry Pi Pico W mounted internally
+- HD44780-compatible 16×2 LCD with PCF8574 I²C backpack
 
 ## Hardware
 
 - Raspberry Pi Pico W (RP2040), CircuitPython 9.2.1
-- 5x4 hand-wired matrix, one diode per key (anode toward row,
-  cathode toward column, verified with `tools/diode_test.py`)
-- Rows: GP2–GP6 · Columns: GP12–GP15 · Status LED: GP11
-- Unwired matrix positions: (2,3), (3,3), (4,1)
-- 16x2 character LCD on a PCF8574 I²C backpack, address 0x27
-  (SCL GP1, SDA GP0)
+- 16×2 HD44780-compatible LCD with PCF8574 I²C backpack (0x27)
+- 17 Gateron KS-9 G Pro Black switches
+- Ranked POM Jelly translucent keycaps
+- 17 white discrete LEDs
+- Rows: GP2–GP6
+- Columns: GP12–GP15
+- Status LED: GP11
+- I²C: SDA GP0 · SCL GP1
 
 ## Install
 
@@ -166,6 +219,18 @@ Persistent settings (currently the lifetime keypress count and LED brightness)
 are stored in `/count.txt`. To minimize flash wear, writes are batched 
 (100 keypresses by default) and also occur immediately after brightness 
 changes and when the device transitions to the idle state.
+
+The firmware is organized into independent subsystems for input handling,
+LCD rendering, view management, HID output, persistent settings, and host 
+communication.
+
+## Future Improvements
+
+- Two-layer custom PCB replacing the hand-wired prototype
+- USB-C integrated into the enclosure
+- User-configurable key mapping and macros
+- More robust persistent configuration storage
+- RGB per-key lighting
 
 ## Tools
 
