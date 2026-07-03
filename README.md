@@ -10,17 +10,21 @@ diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 - 16x2 LCD with switchable views:
   - Clock + weather (current conditions and local time for one of
     four preset Canadian locations; date + time synced from the host)
-  - Lifetime keypress statistics
   - PC stats, 4 cycling pages: overview (CPU/GPU utilization,
     temperature, package power), memory (RAM utilization, DIMM
     temperatures, VRAM), clocks (P/E-core max, GPU, TjMax
     distance), and voltages
+  - Calculator (+ - * / with standard precedence; expression on
+    row 0, result on Enter; keys are captured while active and
+    send nothing to the PC)
+  - Lifetime keypress statistics
 - NumLock doubles as a momentary Fn key:
   - Fn+0: Clock view; pressed again while on it, cycles the
     weather location
-  - Fn+1: Statistics view
-  - Fn+2: PC stats view; pressed again while on it, cycles the
+  - Fn+1: PC stats view; pressed again while on it, cycles the
     stat pages
+  - Fn+2: Calculator view; pressed again while on it, clears
+  - Fn+3: Statistics view
 - Persistent lifetime key counter stored in onboard flash
 - Automatic LCD backlight/LED timeout after 300 seconds of inactivity
 - Optional host companion script feeding local time, hardware stats,
@@ -90,10 +94,23 @@ control. A full LCD line write costs ~50 ms over I²C, so
 unconditional redraws would starve input latency.
 
 The LCD is organized as switchable views (splash on boot, clock,
-statistics, PC stats). Holding **NumLock** acts as a momentary Fn key:
-tapping a digit while held switches views without typing it. A plain
-NumLock tap is deferred until release so tap and hold can be
-distinguished without affecting normal typing.
+PC stats, calculator, statistics). Holding **NumLock** acts as a
+momentary Fn key: tapping a digit while held switches views without
+typing it. A plain NumLock tap is deferred until release so tap and
+hold can be distinguished without affecting normal typing. Each view
+owns its input: most pass keys through to the PC as normal typing,
+while the calculator captures digits and operators entirely
+(including suppressing their release events), so nothing leaks to
+the host while it is active.
+
+The calculator stores the expression as typed (row 0, scrolling
+left past 16 characters) and evaluates on Enter with standard
+precedence: tokens are reduced in two passes, folding `*` and `/`
+left-to-right first, then summing the remaining `+`/`-` terms.
+Divide-by-zero shows Error, cleared by the next digit. After a
+result, a digit starts a fresh expression and an operator continues
+from the result. Results too wide for the row use scientific
+notation. Leaving the view clears it.
 
 Time, weather, and PC stats come from an optional host script
 (`host/companion.py`) over a second USB CDC serial port enabled in

@@ -1,26 +1,35 @@
 # ------------------------------------------------------------------
-# Production Version - 17-key USB numpad + LCD (Phase 6)
+# Production Version - 17-key USB numpad + LCD (Phase 7)
 # Hardware: Raspberry Pi Pico W (RP2040), CircuitPython 9.2.1
 #   Hand-wired 5x4 matrix, one diode per key
 #   (anode toward row, cathode toward column)
 #   Rows GP2-GP6, Cols GP12-GP15, LED GP11
 #   16x2 LCD on PCF8574 I2C backpack @ 0x27, SCL GP1, SDA GP0
 #
-# Phase 6 adds:
-#   - PC stats expanded to 4 pages; Fn+2 switches to the stats
-#     view, pressed again cycles pages: 0 overview (util/temp/
-#     power), 1 memory (RAM util + DIMM temps, VRAM), 2 clocks
-#     (P/E-core max, GPU, TjMax distance), 3 voltages + powers.
-#   - Stat rows arrive PRE-FORMATTED from the host (p{0-3}{a,b}
-#     messages, <=16 chars); the Pico renders them verbatim except
-#     '*' -> degree symbol. Adding/changing a page is host-only.
+# Phase 7 adds:
+#   - Calculator view (Fn+3): expression entry with PEMDAS.
+#     Row 0 shows the expression as typed (scrolls left past 16
+#     chars); row 1 stays blank until Enter, then shows =result.
+#     Evaluation: tokenize, fold * and / left-to-right, then sum
+#     +/- terms. Trailing operator ignored. Divide-by-zero or a
+#     malformed number shows Error; next digit clears. After a
+#     result, a digit starts fresh and an operator continues from
+#     the result. Results wider than the row use scientific
+#     notation. Fn+3 again = clear; leaving the view also clears.
+#     Digits/operators are CAPTURED in this view (nothing to HID).
+#   - Input routing layer: each view either passes key events to
+#     HID (default) or captures them (calculator). Captured keys'
+#     release edges are suppressed via the 'consumed' set, so a
+#     view switch mid-hold cannot leak a stray HID release.
 #
-# Phase 5: weather on the clock view row 0 (wx0..wx3 messages,
-#   4 preset locations), row 1 date+time in the displayed
-#   location's timezone (host sends DST-correct offset minutes).
-#   Fn+0 switches to clock; pressed again cycles the location.
-#   Staleness: weather > 30 min -> "LABEL --", stats > 15 s ->
-#   "no data".
+# Phase 6: PC stats view (Fn+2), 4 cycling pages (overview,
+#   memory, clocks, voltages); rows arrive PRE-FORMATTED from the
+#   host (p{0-3}{a,b}), '*' -> degree symbol; Fn+2 again cycles.
+# Phase 5: weather on the clock view row 0 (wx0..wx3, 4 preset
+#   locations), row 1 date+time in the displayed location's
+#   timezone (host sends DST-correct offset minutes). Fn+0 again
+#   cycles the location. Staleness: weather > 30 min -> "LABEL --",
+#   stats > 15 s -> "no data".
 # Phase 3: host serial channel over usb_cdc.data (boot.py enables
 #   it; power cycle after changing boot.py). Newline-terminated
 #   ASCII "key:value"; Pico is a pure listener. Clock free-runs
@@ -59,12 +68,15 @@ WX_STALE_MS = 30 * 60_000
 STATS_STALE_MS = 15_000
 STAT_PAGES = 4
 
+CALC_MAX_EXPR = 64      # hard cap on expression length
+
 FN_KEY = 0            # key_number of NumLock
 # LCD views
 VIEW_STATS = 1
 VIEW_CLOCK = 2
 VIEW_SPLASH = 3
 VIEW_PCSTATS = 4
+VIEW_CALC = 5
 
 # ----------------------------
 # TIME BASE
@@ -79,26 +91,27 @@ boot_time = now_ms()
 # ----------------------------
 # KEY MAP
 # ----------------------------
-# key_number = row * 4 + col -> (HID keycode, Fn view or None)
+# key_number = row * 4 + col ->
+#   (HID keycode, Fn view or None, calculator symbol or None)
 # Unwired matrix positions are intentionally omitted.
 KEYS = {
-    0:  (Keycode.KEYPAD_NUMLOCK, None),
-    1:  (Keycode.KEYPAD_FORWARD_SLASH, None),
-    2:  (Keycode.KEYPAD_ASTERISK, None),
-    3:  (Keycode.KEYPAD_MINUS, None),
-    4:  (Keycode.KEYPAD_SEVEN, None),
-    5:  (Keycode.KEYPAD_EIGHT, None),
-    6:  (Keycode.KEYPAD_NINE, None),
-    7:  (Keycode.KEYPAD_PLUS, None),
-    8:  (Keycode.KEYPAD_FOUR, None),
-    9:  (Keycode.KEYPAD_FIVE, None),
-    10: (Keycode.KEYPAD_SIX, None),
-    12: (Keycode.KEYPAD_ONE, VIEW_STATS),
-    13: (Keycode.KEYPAD_TWO, VIEW_PCSTATS),
-    14: (Keycode.KEYPAD_THREE, None),
-    16: (Keycode.KEYPAD_ZERO, VIEW_CLOCK),
-    18: (Keycode.KEYPAD_PERIOD, None),
-    19: (Keycode.KEYPAD_ENTER, None),
+    0:  (Keycode.KEYPAD_NUMLOCK, None, None),
+    1:  (Keycode.KEYPAD_FORWARD_SLASH, None, "/"),
+    2:  (Keycode.KEYPAD_ASTERISK, None, "*"),
+    3:  (Keycode.KEYPAD_MINUS, None, "-"),
+    4:  (Keycode.KEYPAD_SEVEN, None, "7"),
+    5:  (Keycode.KEYPAD_EIGHT, None, "8"),
+    6:  (Keycode.KEYPAD_NINE, None, "9"),
+    7:  (Keycode.KEYPAD_PLUS, None, "+"),
+    8:  (Keycode.KEYPAD_FOUR, None, "4"),
+    9:  (Keycode.KEYPAD_FIVE, None, "5"),
+    10: (Keycode.KEYPAD_SIX, None, "6"),
+    12: (Keycode.KEYPAD_ONE, VIEW_PCSTATS, "1"),
+    13: (Keycode.KEYPAD_TWO, VIEW_CALC, "2"),
+    14: (Keycode.KEYPAD_THREE, VIEW_STATS, "3"),
+    16: (Keycode.KEYPAD_ZERO, VIEW_CLOCK, "0"),
+    18: (Keycode.KEYPAD_PERIOD, None, "."),
+    19: (Keycode.KEYPAD_ENTER, None, "="),
 }
 
 # ----------------------------
@@ -189,6 +202,126 @@ stat_page = 0            # page shown on the PC stats view
 wx = [None] * WX_SLOTS   # each: (label, cond, temp, offset_min)
 wx_rx_ms = 0             # receipt time for staleness
 wx_index = 0             # location shown on the clock view
+
+# ----------------------------
+# CALCULATOR STATE
+# ----------------------------
+# expr   - expression string as typed ("2+3*4")
+# result - result string after Enter, or None
+# error  - True after div-by-zero/malformed; next digit clears
+calc_expr = ""
+calc_result = None
+calc_error = False
+
+OPS = "+-*/"
+
+def calc_clear():
+    global calc_expr, calc_result, calc_error
+    calc_expr = ""
+    calc_result = None
+    calc_error = False
+
+def calc_display(v):
+    # exact int when possible; scientific if too wide for the row
+    if v == int(v):
+        v = int(v)
+    s = str(v)
+    if len(s) <= LCD_COLS - 1:      # -1 for the '=' prefix
+        return s
+    return "{:.6e}".format(v)
+
+def calc_eval(expr):
+    """PEMDAS for + - * / by two-pass reduction.
+    Returns result string, or None on error."""
+    if expr and expr[-1] in OPS:
+        expr = expr[:-1]            # trailing operator: ignore
+    if not expr:
+        return None
+
+    # tokenize: numbers and operators, strictly alternating
+    tokens = []
+    num = ""
+    for ch in expr:
+        if ch in OPS:
+            tokens.append(num)
+            tokens.append(ch)
+            num = ""
+        else:
+            num += ch
+    tokens.append(num)
+
+    try:
+        vals = [float(tokens[i]) for i in range(0, len(tokens), 2)]
+    except ValueError:
+        return None                 # malformed number, e.g. "."
+    ops = [tokens[i] for i in range(1, len(tokens), 2)]
+
+    # pass 1: fold * and / left-to-right (higher precedence)
+    i = 0
+    while i < len(ops):
+        if ops[i] in "*/":
+            if ops[i] == "/" and vals[i + 1] == 0:
+                return None
+            vals[i] = (vals[i] * vals[i + 1] if ops[i] == "*"
+                       else vals[i] / vals[i + 1])
+            del vals[i + 1]
+            del ops[i]
+        else:
+            i += 1
+
+    # pass 2: sum the remaining +/- terms
+    acc = vals[0]
+    for op, v in zip(ops, vals[1:]):
+        acc = acc + v if op == "+" else acc - v
+    return calc_display(acc)
+
+def calc_key(sym):
+    global calc_expr, calc_result, calc_error
+    if sym in "0123456789.":
+        if calc_error or calc_result is not None:
+            calc_clear()            # digit after result/error: fresh start
+        if sym == ".":
+            # one '.' per number: scan back to the last operator
+            tail = calc_expr
+            for op in OPS:
+                tail = tail.split(op)[-1]
+            if "." in tail:
+                return
+        if len(calc_expr) < CALC_MAX_EXPR:
+            calc_expr += sym
+        return
+
+    if sym in OPS:
+        if calc_error:
+            return
+        if calc_result is not None:
+            # operator after result: continue from the result
+            calc_expr = calc_result
+            calc_result = None
+        if not calc_expr:
+            return                  # no leading operator (no unary minus)
+        if calc_expr[-1] in OPS:
+            calc_expr = calc_expr[:-1] + sym   # replace repeated op
+        else:
+            calc_expr += sym
+        return
+
+    # sym == "=": evaluate
+    if calc_error or not calc_expr or calc_result is not None:
+        return
+    r = calc_eval(calc_expr)
+    if r is None:
+        calc_error = True
+    else:
+        calc_result = r
+
+def calc_rows():
+    top = calc_expr[-LCD_COLS:]     # scroll: show the tail
+    if calc_error:
+        return (top, "Error")
+    if calc_result is not None:
+        return (top, "=" + calc_result)
+    return (top, "")
 
 # ----------------------------
 # SERIAL
@@ -305,6 +438,10 @@ def render(t):
         pcstats_shown = pcstats_rows(t)
         draw_line(0, pcstats_shown[0])
         draw_line(1, pcstats_shown[1])
+    elif view == VIEW_CALC:
+        rows = calc_rows()
+        draw_line(0, rows[0])
+        draw_line(1, rows[1])
 
 pcstats_shown = ("", "")
 
@@ -328,7 +465,7 @@ while True:
     while event:
         key = KEYS.get(event.key_number)
         if key is not None:
-            keycode, fn_action = key
+            keycode, fn_action, calc_sym = key
 
             if event.pressed:
                 press_count += 1
@@ -339,16 +476,26 @@ while True:
                     fn_used = False
                 # Fn shortcut: switch view without sending a key.
                 # Repeated on the view's own key: clock cycles the
-                # weather location, PC stats cycles the page.
+                # weather location, PC stats cycles the page,
+                # calculator clears.
                 elif fn_down and fn_action is not None:
                     fn_used = True
                     consumed.add(event.key_number)
                     if view != fn_action:
+                        if view == VIEW_CALC:
+                            calc_clear()       # leaving calc = CE
                         view = fn_action
                     elif fn_action == VIEW_CLOCK:
                         wx_index = (wx_index + 1) % WX_SLOTS
                     elif fn_action == VIEW_PCSTATS:
                         stat_page = (stat_page + 1) % STAT_PAGES
+                    elif fn_action == VIEW_CALC:
+                        calc_clear()
+                    view_dirty = True
+                # input routing: calculator captures its keys
+                elif view == VIEW_CALC and calc_sym is not None:
+                    consumed.add(event.key_number)
+                    calc_key(calc_sym)
                     view_dirty = True
                 else:
                     keyboard.press(keycode)
