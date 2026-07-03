@@ -1,6 +1,6 @@
 # ------------------------------------------------------------------
 # Manual Scan.py - manual matrix scanning reference
-# NOT the production firmware (see numpad_prod.py, which uses
+# NOT the production firmware (see code.py, which uses
 # keypad.KeyMatrix). Kept as a hand-written implementation of what
 # KeyMatrix does internally: scan sequencing, settle timing,
 # per-key debounce state machine, edge extraction.
