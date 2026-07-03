@@ -4,7 +4,18 @@ Hand-wired 17-key USB numpad on a Raspberry Pi Pico W. CircuitPython,
 diode-per-key 5x4 matrix, event-driven scanning via `keypad.KeyMatrix`.
 
 <p align="center">
-  <img src="images/numpadIMG.jpg" alt="pico-numpad" width="600">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="images/numpadIMG.jpg" width="450"><br>
+        <b>Hardware</b>
+      </td>
+      <td align="center">
+        <img src="images/numpadWiring.jpg" width="450"><br>
+        <b>LCD Interface</b>
+      </td>
+    </tr>
+  </table>
 </p>
 
 ## Features
