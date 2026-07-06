@@ -34,7 +34,7 @@ this project using CircuitPython with event-driven matrix scanning via
   - Fn+'-': Decrease keypad LED brightness
 - Persistent settings (lifetime key counter and LED brightness) are stored in the
 CircuitPython filesystem (`/count.txt` on internal flash).
-- Adjustable keypad LED brightness (Fn + '+' / Fn + '-'), persisted across power cycles
+- Adjustable keypad LED brightness (Fn + '+' / Fn + '-')
 - Automatic LCD backlight/LED timeout after 300 seconds of inactivity
 - Optional Python companion application providing local time,
 weather (Environment Canada API), and PC hardware monitoring.
@@ -115,7 +115,7 @@ verified using the included `tools/matrix_map_test.py` and
 - 17 white discrete LEDs
 - Rows: GP2–GP6
 - Columns: GP12–GP15
-- Status LED: GP11
+- Key LEDs (PWM): GP11
 - I²C: SDA GP0 · SCL GP1
 
 ## Install
