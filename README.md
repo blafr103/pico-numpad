@@ -34,7 +34,6 @@ this project using CircuitPython with event-driven matrix scanning via
   - Fn+'-': Decrease keypad LED brightness
 - Persistent settings (lifetime key counter and LED brightness) are stored in the
 CircuitPython filesystem (`/count.txt` on internal flash).
-- Adjustable keypad LED brightness (Fn + '+' / Fn + '-')
 - Automatic LCD backlight/LED timeout after 300 seconds of inactivity
 - Optional Python companion application providing local time,
 weather (Environment Canada API), and PC hardware monitoring.
@@ -137,7 +136,7 @@ verified using the included `tools/matrix_map_test.py` and
    - PC stats additionally require
      [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
      running as administrator with its web server enabled
-     (Options → Remote Web Server → Run). Time and weather work
+     (Options - Remote Web Server - Run). Time and weather work
      without it.
    - Weather locations are configured in companion.py as
      label + coordinates + IANA timezone.
@@ -188,8 +187,9 @@ from the result. Results too wide for the row use scientific
 notation. Leaving the view clears it.
 
 Time, weather, and PC stats come from an optional host script
-(`host/companion.py`) over a second USB CDC serial port enabled in
-`boot.py`. The protocol is newline-terminated ASCII `key:value` lines;
+(`host/companion.py`, setup and operation in
+[host/README.md](host/README.md)) over a second USB CDC serial port
+enabled in `boot.py`. The protocol is newline-terminated ASCII `key:value` lines;
 the Pico is a pure listener and the host broadcasts unsolicited (time
 on connect and every 30 s, stats every 2 s, weather every 10 min).
 The clock free-runs on the crystal between syncs and re-anchors on
