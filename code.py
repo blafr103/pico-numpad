@@ -1,3 +1,4 @@
+
 # ------------------------------------------------------------------
 # Production Version - 17-key USB numpad + LCD (Phase 7)
 # Hardware: Raspberry Pi Pico W (RP2040), CircuitPython 9.2.1
@@ -35,53 +36,47 @@
 #     lightweight display/input device
 # ------------------------------------------------------------------
 
-import pwmio
-
 import time
 import board
 import busio
-import digitalio
 import keypad
 import usb_cdc
 import usb_hid
+import pwmio
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keycode import Keycode
-
 from lcd import LCD
 from i2c_pcf8574_interface import I2CPCF8574Interface
-
 
 # ----------------------------
 # CONSTANTS
 # ----------------------------
-IDLE_TIMEOUT_MS = 300_000
-LCD_COLS = 16
-COUNT_FILE = "/count.txt"
-FLUSH_EVERY = 100 # save cycle every 100 presses
-
-WX_SLOTS = 4
-WX_STALE_MS = 30 * 60_000
-STATS_STALE_MS = 15_000
-STAT_PAGES = 4
-
-CALC_MAX_EXPR = 64		# hard cap on calc expression length
-
-FN_KEY = 0				# key_number of NumLock
-FN_BRIGHT_UP = 7       # '+' key: Fn combo raises LED brightness
-FN_BRIGHT_DOWN = 3     # '-' key: Fn combo lowers LED brightness
-
-# LCD views
-VIEW_STATS = 1
-VIEW_CLOCK = 2
-VIEW_SPLASH = 3
-VIEW_PCSTATS = 4
-VIEW_CALC = 5
-
-# key-leds (white)
-LED_STEP = 8192			# 12.5~% per press
-LED_MIN = 0
-LED_MAX = 65535
-
+# --- LCD geometry ---
+LCD_COLS = 16                # number of character columns on the LCD
+# --- timing / idle ---
+IDLE_TIMEOUT_MS = 300_000    # inactivity time until screen and LEDs sleep
+WX_STALE_MS = 30 * 60_000    # weather older than this shows as stale
+STATS_STALE_MS = 15_000      # PC stats older than this show "no data"
+# --- persistence ---
+COUNT_FILE = "/count.txt"    # persistent store: keystroke count + LED brightness
+FLUSH_EVERY = 100            # batch flash writes: save every N presses (idle also flushes)
+# --- matrix key numbers (row * 4 + col) ---
+FN_KEY = 0                   # NumLock, used as the Fn modifier
+FN_BRIGHT_UP = 7             # '+' key: Fn combo raises LED brightness
+FN_BRIGHT_DOWN = 3           # '-' key: Fn combo lowers LED brightness
+# --- LCD views ---
+VIEW_STATS = 1               # lifetime keypress counter
+VIEW_CLOCK = 2               # clock + weather (default after splash)
+VIEW_SPLASH = 3              # boot screen, transitions to clock
+VIEW_PCSTATS = 4             # host PC stats, cycling pages
+VIEW_CALC = 5                # calculator
+STAT_PAGES = 4               # number of cycling PC-stat pages
+WX_SLOTS = 4                 # number of preset weather locations
+CALC_MAX_EXPR = 64           # hard cap on calc expression length
+# --- key LEDs (white, PWM on GP11) ---
+LED_STEP = 8192			     # brightness step per press (65535/8 = 8 levels + off)
+LED_MIN = 0                  # minimum led strength
+LED_MAX = 65535              # maximum led strength (16-bit PWM duty - 65,536 possible duty cycle values)
 
 # ----------------------------
 # TIME BASE
@@ -90,8 +85,8 @@ LED_MAX = 65535
 def now_ms():
     return time.monotonic_ns() // 1_000_000
 
-SPLASH_DURATION_MS = 1500
-boot_time = now_ms()
+SPLASH_DURATION_MS = 1500    # how long the boot splash stays before the clock
+boot_time = now_ms()         # reference point for the splash timeout
 
 # ----------------------------
 # KEY MAP
@@ -132,15 +127,14 @@ def load_settings():
 
         if len(lines) > 1:
             brightness = int(lines[1])
-            brightness = max(LED_MIN, min(LED_MAX, brightness))
+            brightness = max(LED_MIN, min(LED_MAX, brightness))    # clamp to valid PWM range
         else:
-            # old file format
-            brightness = LED_MAX
+            brightness = LED_MAX    # old file format
 
         return count, brightness
 
     except (OSError, ValueError, IndexError):
-        return 0, LED_MAX
+        return 0, LED_MAX    # missing/corrupt file: fresh defaults
 
 def save_settings():
     global unsaved
@@ -150,17 +144,17 @@ def save_settings():
                 press_count,
                 led_brightness
             ))
-        unsaved = 0
+        unsaved = 0    # reset the unsaved-press counter on a real write
     except OSError:
-        pass            # ignore writes when storage is read-only (dev mode)
+        pass    # ignore writes when storage is read-only (dev mode)
 
 press_count, led_brightness = load_settings()
-unsaved = 0
+unsaved = 0    # presses accumulated since the last successful save
 
 # ----------------------------
 # HARDWARE INIT
 # ----------------------------
-# initialize key matrix scanner
+# background matrix scanner (C-level, debounced, event queue).
 matrix = keypad.KeyMatrix(
     row_pins=(board.GP2, board.GP3, board.GP4, board.GP5, board.GP6),
     column_pins=(board.GP12, board.GP13, board.GP14, board.GP15),
@@ -168,18 +162,20 @@ matrix = keypad.KeyMatrix(
     interval=0.010,
 )
 
-keyboard = Keyboard(usb_hid.devices)
+keyboard = Keyboard(usb_hid.devices)    # HID keyboard bound to the USB interface
 
 # key-leds (white)
-# replace DigitalInOut with PWMOut
+# GP11 drives all white key LEDs together, PWM gives brightness control.
+# initial duty comes from the loaded setting so there's no flash-then-dim at boot.
 led = pwmio.PWMOut(
     board.GP11,
     frequency=1000,
     duty_cycle=led_brightness
 )
-#led = digitalio.DigitalInOut(board.GP11)
-#led.direction = digitalio.Direction.OUTPUT
-#led.value = True
+
+# push the current LED state to hardware: chosen brightness when awake,
+# fully off when the display has slept. reads backlight_on/led_brightness
+# as globals (both exist by the time this is first called in the loop).
 def update_led():
     if backlight_on:
         led.duty_cycle = led_brightness
@@ -195,43 +191,43 @@ serial = usb_cdc.data      # None if boot.py didn't enable it
 # STATE
 # ----------------------------
 # Fn (Function) state
-fn_down = False         # NumLock physically held
-fn_used = False         # a digit was consumed during this hold
-consumed = set()        # keys whose release event should be ignored
+fn_down = False             # NumLock physically held
+fn_used = False             # a digit was consumed during this hold
+consumed = set()            # keys whose release event should be ignored
 
-view = VIEW_SPLASH      # default view
-view_dirty = True
+view = VIEW_SPLASH          # default view
+view_dirty = True           # set on any visible change, cleared after a render
 
-backlight_on = True
-last_activity = now_ms()
+backlight_on = True         # shadow of the (write-only) backlight/LED on-state
+last_activity = now_ms()    # timestamp of the last key event, for idle timeout
 
 # ----------------------------
 # TIME SYNC STATE
 # ----------------------------
-synced = False
+synced = False          # False until the first host time message, clock shows UNKNOWN
 epoch_at_sync = 0       # unix epoch (home-local) from last host message
 ms_at_sync = 0          # monotonic ms when that message arrived
 clock_shown = ""        # last strings rendered on the clock view
 
+# reconstruct current time by free-running from the last sync anchor
+# (host re-syncs periodically, so drift never exceeds one broadcast interval)
 def current_epoch(t):
-    # free-run: anchor epoch + elapsed monotonic time since anchor
-    return epoch_at_sync + (t - ms_at_sync) // 1000
+    return epoch_at_sync + (t - ms_at_sync) // 1000    # free-run: anchor epoch + elapsed monotonic time since anchor
 
-rx_buf = b""            # partial-line accumulator for serial input
+rx_buf = b"" # partial-line accumulator for serial input
 
 # ----------------------------
 # PC STATS STATE
 # ----------------------------
-# host-formatted display lines, [page][row]; '*' -> degree at draw
-stat_lines = [["", ""] for _ in range(STAT_PAGES)]
-stats_rx_ms = 0          # receipt time for staleness
+stat_lines = [["", ""] for _ in range(STAT_PAGES)]    # host-formatted display lines, [page][row]; '*' -> degree at draw
+stats_rx_ms = 0          # receipt time of last stat message (0 = never); for staleness
 stat_page = 0            # page shown on the PC stats view
 
 # ----------------------------
 # WEATHER STATE
 # ----------------------------
-wx = [None] * WX_SLOTS   # each: (label, cond, temp, offset_min)
-wx_rx_ms = 0             # receipt time for staleness
+wx = [None] * WX_SLOTS   # each: (label, cond, temp, offset_min), None until first msg
+wx_rx_ms = 0             # receipt time of last weather message; for staleness
 wx_index = 0             # location shown on the clock view
 
 # ----------------------------
@@ -244,14 +240,17 @@ calc_expr = ""
 calc_result = None
 calc_error = False
 
-OPS = "+-*/"
+OPS = "+-*/"    # the four supported operator characters
 
+# reset the calculator to empty (also used as clear-entry)
 def calc_clear():
     global calc_expr, calc_result, calc_error
     calc_expr = ""
     calc_result = None
     calc_error = False
 
+# format a numeric result for the row: whole numbers drop the ".0",
+# anything too wide for the 16-char row (minus the '=') falls back to sci notation
 def calc_display(v):
     # exact int when possible; scientific if too wide for the row
     if v == int(v):
@@ -261,6 +260,9 @@ def calc_display(v):
         return s
     return "{:.6e}".format(v)
 
+# evaluate a full expression with PEMDAS via two reduction passes.
+# input rules guarantee tokens strictly alternate number/op, so no parser
+# stack is needed. returns a display string, or None on any error
 def calc_eval(expr):
     """PEMDAS for + - * / by two-pass reduction.
     Returns result string, or None on error."""
@@ -281,6 +283,7 @@ def calc_eval(expr):
             num += ch
     tokens.append(num)
 
+    # even indices are numbers, odd indices are operators
     try:
         vals = [float(tokens[i]) for i in range(0, len(tokens), 2)]
     except ValueError:
@@ -288,11 +291,12 @@ def calc_eval(expr):
     ops = [tokens[i] for i in range(1, len(tokens), 2)]
 
     # pass 1: fold * and / left-to-right (higher precedence)
+    # i does not advance after a fold: the next op slides into index i.
     i = 0
     while i < len(ops):
         if ops[i] in "*/":
             if ops[i] == "/" and vals[i + 1] == 0:
-                return None
+                return None    # divide by zero -> error
             vals[i] = (vals[i] * vals[i + 1] if ops[i] == "*"
                        else vals[i] / vals[i + 1])
             del vals[i + 1]
@@ -306,6 +310,7 @@ def calc_eval(expr):
         acc = acc + v if op == "+" else acc - v
     return calc_display(acc)
 
+# handle one captured calculator keypress (digit, '.', operator, or '=')
 def calc_key(sym):
     global calc_expr, calc_result, calc_error
     if sym in "0123456789.":
@@ -317,14 +322,14 @@ def calc_key(sym):
             for op in OPS:
                 tail = tail.split(op)[-1]
             if "." in tail:
-                return
+                return    # this number already has a decimal point
         if len(calc_expr) < CALC_MAX_EXPR:
             calc_expr += sym
         return
 
     if sym in OPS:
         if calc_error:
-            return
+            return    # operators do nothing while in error state
         if calc_result is not None:
             # operator after result: continue from the result
             calc_expr = calc_result
@@ -339,13 +344,14 @@ def calc_key(sym):
 
     # sym == "=": evaluate
     if calc_error or not calc_expr or calc_result is not None:
-        return
+        return    # nothing to do
     r = calc_eval(calc_expr)
     if r is None:
         calc_error = True
     else:
         calc_result = r
 
+# the two calculator rows: expression (scrolled to its tail) and result/error
 def calc_rows():
     top = calc_expr[-LCD_COLS:]     # scroll: show the tail
     if calc_error:
@@ -357,6 +363,8 @@ def calc_rows():
 # ----------------------------
 # SERIAL
 # ----------------------------
+# dispatch one parsed host message. unknown keys are ignored, which is how
+# the protocol stays forward-compatible: new host messages can't break old firmware.
 def handle_message(key, value):
     global synced, epoch_at_sync, ms_at_sync
     global view_dirty, stats_rx_ms, wx_rx_ms
@@ -379,6 +387,7 @@ def handle_message(key, value):
             if view == VIEW_PCSTATS and page == stat_page:
                 view_dirty = True
     elif key.startswith("wx"):
+        # wx{slot}: label,cond,temp,offset_min for one weather location
         try:
             slot = int(key[2:])
             label, cond, temp, off = value.split(",")
@@ -404,9 +413,9 @@ def poll_serial():
         try:
             text = line.decode().strip()
         except UnicodeError:
-            continue
+            continue    # skip non-UTF-8 lines
         if ":" in text:
-            key, value = text.split(":", 1)
+            key, value = text.split(":", 1)    # split on first ':' only
             handle_message(key, value)
 
 # ----------------------------
@@ -415,21 +424,25 @@ def poll_serial():
 
 DEGREE = chr(0xDF)      # degree symbol in the HD44780 character ROM
 
+# one PC-stats row for the current page, or a staleness placeholder
 def stat_row(row, t):
     if (t - stats_rx_ms) > STATS_STALE_MS or stats_rx_ms == 0:
         return "no data" if row == 0 else ""
     # '*' is the host's placeholder for the degree symbol
     return stat_lines[stat_page][row].replace("*", DEGREE)
 
+# clock-view row 0: current location's weather, or a placeholder if absent/stale
 def weather_line(t):
     entry = wx[wx_index]
     if entry is None:
         return "no weather"
     label, cond, temp, _ = entry
     if (t - wx_rx_ms) > WX_STALE_MS:
-        return label + " --"
+        return label + " --"    # stale: label with no data
     return "{} {} {}{}".format(label, cond, temp, DEGREE)
 
+# clock-view row 1: date/time in the displayed location's local time
+# (host-supplied offset_min shifts the home-local epoch)
 def clock_string(t):
     if not synced:
         return "UNKNOWN"
@@ -445,14 +458,17 @@ def clock_rows(t):
     return (weather_line(t), clock_string(t))
 
 def pcstats_rows(t):
+    # both PC-stats rows as one tuple, matching the clock's refresh pattern
     return (stat_row(0, t), stat_row(1, t))
 
-# overwrite an entire LCD row to avoid clearing the display
+# write one full LCD row, padded/truncated to width, so old content is
+# overwritten without a clear() (clear() is slow and blanks both rows)
 def draw_line(row, text):
     lcd.set_cursor_pos(row, 0)
     lcd.print((text + " " * LCD_COLS)[:LCD_COLS])
 
-# draw the active screen
+# draw the active view's two rows; caches the "shown" tuples for the
+# time-varying views so the loop's refresh check can detect real changes
 def render(t):
     global clock_shown, pcstats_shown
     if view == VIEW_SPLASH:
@@ -474,7 +490,7 @@ def render(t):
         draw_line(0, rows[0])
         draw_line(1, rows[1])
 
-pcstats_shown = ("", "")
+pcstats_shown = ("", "")    # last-rendered PC-stats rows (compared each loop)
 
 # ----------------------------
 # INIT DISPLAY
@@ -489,9 +505,10 @@ lcd.set_backlight(True)
 while True:
     t = now_ms()
 
-    poll_serial()
+    poll_serial()    # ingest any waiting host messages first
 
-    # process every queued key event before updating the display
+    # process every queued key event before updating the display, so a
+    # burst of presses costs one render rather than one render per key
     event = matrix.events.get()
     while event:
         key = KEYS.get(event.key_number)
@@ -501,14 +518,14 @@ while True:
             if event.pressed:
                 press_count += 1
                 unsaved += 1
-                # decide tap vs. Fn when NumLock is released
+                # NumLock: don't act yet, decide tap vs. Fn at release
                 if event.key_number == FN_KEY:
                     fn_down = True
                     fn_used = False
                 # Fn + '+' = increase LED brightness
                 elif fn_down and event.key_number == FN_BRIGHT_UP:
                     fn_used = True
-                    consumed.add(event.key_number)
+                    consumed.add(event.key_number)    # suppress its release
 
                     led_brightness = min(LED_MAX, led_brightness + LED_STEP)
                     update_led()
@@ -540,42 +557,44 @@ while True:
                     elif fn_action == VIEW_CALC:
                         calc_clear()
                     view_dirty = True
-                # input routing: calculator captures its keys
+                # input routing: while in the calculator, capture the key
+                # for the calc instead of sending it to the host
                 elif view == VIEW_CALC and calc_sym is not None:
                     consumed.add(event.key_number)
                     calc_key(calc_sym)
                     view_dirty = True
                 else:
-                    keyboard.press(keycode)
+                    keyboard.press(keycode)    # normal typing -> HID
                 if view == VIEW_STATS:
                     view_dirty = True      # count changed on-screen
             # key released
             else:
                 if event.key_number == FN_KEY:
                     fn_down = False
-                    # NumLock was tapped
+                    # NumLock released without being used as Fn: send the tap now
                     if not fn_used:
                         keyboard.press(keycode)
                         keyboard.release(keycode)
                 elif event.key_number in consumed:
-                    consumed.discard(event.key_number)  # ignore release
+                    consumed.discard(event.key_number)  # captured key: swallow release
                 else:
                     keyboard.release(keycode)
 
-        last_activity = t
+        last_activity = t    # any edge counts as activity
         event = matrix.events.get()
 
-    # save periodically to reduce flash writes
+    # batched persistence: flush after enough presses accumulate
     if unsaved >= FLUSH_EVERY:
         save_settings()
 
-    # handle idle backlight and save before sleeping
+    # idle timeout: sleep display + LEDs (edge-triggered), and flush on
+    # the way down since "walked away" is a natural save point
     idle = (t - last_activity) >= IDLE_TIMEOUT_MS
     if idle and backlight_on:
         lcd.set_backlight(False)
 
         backlight_on = False
-        update_led()
+        update_led()    # LEDs off with the backlight
 
         if unsaved:
             save_settings()
@@ -583,9 +602,9 @@ while True:
         lcd.set_backlight(True)
 
         backlight_on = True
-        update_led()
+        update_led()    # restore chosen brightness on wake
 
-    # splash transition
+    # splash transition: show the boot screen briefly, then the clock
     if view == VIEW_SPLASH and (t - boot_time) > SPLASH_DURATION_MS:
         view = VIEW_CLOCK
         view_dirty = True
@@ -600,7 +619,7 @@ while True:
     if view == VIEW_PCSTATS and pcstats_rows(t) != pcstats_shown:
         view_dirty = True
 
-    # render
+    # render only when something actually changed
     if view_dirty:
         render(t)
         view_dirty = False
