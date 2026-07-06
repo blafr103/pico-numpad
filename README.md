@@ -141,9 +141,8 @@ verified using the included `tools/matrix_map_test.py` and
      without it.
    - Weather locations are configured in companion.py as
      label + coordinates + IANA timezone.
-   - For hands-off startup, run both at logon: LibreHardwareMonitor
-     via its own startup option, and companion.py via Task Scheduler
-     (`pythonw.exe <path>\companion.py`).
+   - For hands-off startup on Windows (Task Scheduler setup, logging,
+    troubleshooting), see [host/README.md](host/README.md).
 
 ## Design
 
