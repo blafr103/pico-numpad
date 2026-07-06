@@ -19,7 +19,12 @@
 # PC (i7-13700K, RTX 4080, 2x Corsair DDR5); adjust for others.
 #
 # Deps: pip install pyserial requests env_canada
-# Auto-start: Task Scheduler -> pythonw.exe <path>\companion.py
+# Logging: rotating file beside this script (LOG_FILE constant,
+#   500 KB x 2 backups). No console output; under pythonw.exe
+#   there is no console, so print() would be silently lost.
+# Auto-start: Task Scheduler at logon, pythonw.exe as the program
+#   and this script as the argument. Full setup, watchdog trigger,
+#   and Store-stub warning: see host/README.md
 # ------------------------------------------------------------------
 
 import asyncio
@@ -31,6 +36,20 @@ import serial
 import serial.tools.list_ports
 import requests
 from env_canada import ECWeather
+import logging
+from logging.handlers import RotatingFileHandler
+import os
+
+LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "companion.log")
+
+logging.basicConfig(
+    handlers=[RotatingFileHandler(
+        LOG_FILE,
+        maxBytes=500_000, backupCount=2)],
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+
 
 PORT = None
 TIME_INTERVAL_S = 30
@@ -103,7 +122,7 @@ def read_weather():
             out.append((i, label, cond_short(cond), round(temp),
                         tz_offset_min(tzname)))
         except Exception as e:
-            print("wx", label, "failed:", e)
+            logging.warning("wx %s failed: %s", label, e)
     return out
 
 
@@ -193,31 +212,38 @@ def stat_pages():
         "p3b": "CPU {}W GPU {}W".format(i(cpu_pwr), i(gpu_pwr)),				# CPU/GPU package powers
     }
 
+def main():
+    while True:
+        port = find_port()
+        if port is None:
+            logging.info("no Pico data port found, retrying")
+            time.sleep(5)
+            continue
+        try:
+            with serial.Serial(port, 115200, timeout=1) as s:
+                logging.info("connected: %s", port)
+                last_time = 0.0
+                last_wx = 0.0
+                while True:
+                    now = time.monotonic()
+                    if now - last_time >= TIME_INTERVAL_S or last_time == 0:
+                        s.write(f"time:{local_epoch()}\n".encode())
+                        last_time = now
+                    if now - last_wx >= WX_INTERVAL_S or last_wx == 0:
+                        for i_, label, cond, temp, off in read_weather():
+                            s.write(f"wx{i_}:{label},{cond},{temp},{off}\n"
+                                    .encode())
+                        last_wx = now
+                    for key, line in stat_pages().items():
+                        s.write(f"{key}:{line}\n".encode())
+                    time.sleep(STATS_INTERVAL_S)
+        except (serial.SerialException, OSError):
+            logging.warning("disconnected, retrying")
+            time.sleep(5)
 
-while True:
-    port = find_port()
-    if port is None:
-        print("no Pico data port found, retrying")
-        time.sleep(5)
-        continue
+if __name__ == "__main__":
     try:
-        with serial.Serial(port, 115200, timeout=1) as s:
-            print("connected:", port)
-            last_time = 0.0
-            last_wx = 0.0
-            while True:
-                now = time.monotonic()
-                if now - last_time >= TIME_INTERVAL_S or last_time == 0:
-                    s.write(f"time:{local_epoch()}\n".encode())
-                    last_time = now
-                if now - last_wx >= WX_INTERVAL_S or last_wx == 0:
-                    for i_, label, cond, temp, off in read_weather():
-                        s.write(f"wx{i_}:{label},{cond},{temp},{off}\n"
-                                .encode())
-                    last_wx = now
-                for key, line in stat_pages().items():
-                    s.write(f"{key}:{line}\n".encode())
-                time.sleep(STATS_INTERVAL_S)
-    except (serial.SerialException, OSError):
-        print("disconnected, retrying")
-        time.sleep(5)
+        main()
+    except Exception:
+        logging.exception("companion crashed")
+        raise
