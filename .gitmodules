@@ -1,0 +1,3 @@
+[submodule "hardware/numpad/lib/marbastlib"]
+	path = hardware/numpad/lib/marbastlib
+	url = https://github.com/ebastler/marbastlib
