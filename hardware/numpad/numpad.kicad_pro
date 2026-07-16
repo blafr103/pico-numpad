@@ -648,7 +648,7 @@
         "uuid": "a21b85ed-e0a7-4fe0-8fc3-9355226ce8a2"
       }
     ],
-    "used_designators": "D18",
+    "used_designators": "#PWR30-37,D18,U5,LED1-18,C17-36,R9",
     "variants": []
   },
   "sheets": [

@@ -32,6 +32,16 @@
 	)
 	(wire
 		(pts
+			(xy 53.34 138.43) (xy 53.34 148.59)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "20db5589-a77a-4b63-8066-d8d35cdc9c96")
+	)
+	(wire
+		(pts
 			(xy 40.64 161.29) (xy 58.42 161.29)
 		)
 		(stroke
@@ -72,6 +82,16 @@
 	)
 	(wire
 		(pts
+			(xy 53.34 148.59) (xy 58.42 148.59)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8ed10069-c17a-4374-8254-11c32ce2c26e")
+	)
+	(wire
+		(pts
 			(xy 81.28 152.4) (xy 97.79 152.4)
 		)
 		(stroke
@@ -89,6 +109,16 @@
 			(type default)
 		)
 		(uuid "9d99b233-463e-4ea2-9b01-43563277e143")
+	)
+	(wire
+		(pts
+			(xy 40.64 138.43) (xy 53.34 138.43)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b0859f46-7766-49a8-bfa9-17b5e875b7e3")
 	)
 	(wire
 		(pts
@@ -568,7 +598,7 @@
 		)
 	)
 	(sheet
-		(at 153.67 127)
+		(at 27.94 132.08)
 		(size 12.7 11.43)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -584,7 +614,7 @@
 		)
 		(uuid "c654350a-fcc8-4bec-9391-238006a00af9")
 		(property "Sheetname" "04_rgb"
-			(at 153.67 126.2884 0)
+			(at 27.94 131.3684 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -595,7 +625,7 @@
 			)
 		)
 		(property "Sheetfile" "04_rgb.kicad_sch"
-			(at 153.67 139.0146 0)
+			(at 27.94 144.0946 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -603,6 +633,16 @@
 					(size 1.27 1.27)
 				)
 				(justify left top)
+			)
+		)
+		(pin "RGB_DATA" input
+			(at 40.64 138.43 0)
+			(uuid "aa9ac0fe-2bbe-43c0-a445-3e9e65ec872d")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
 			)
 		)
 		(instances
