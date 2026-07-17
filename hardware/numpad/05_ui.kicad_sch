@@ -3,7 +3,12 @@
 	(generator "eeschema")
 	(generator_version "10.0")
 	(uuid "1acb2540-9579-4df1-8585-7da475e0275b")
-	(paper "A4")
+	(paper "A5")
+	(title_block
+		(title "LCD I2C Connectors")
+		(date "2026-07-16")
+		(rev "0")
+	)
 	(lib_symbols
 		(symbol "Connector_Generic:Conn_01x04"
 			(pin_names
@@ -1072,7 +1077,7 @@
 	)
 	(text "high-side I2C pullups on LCD backpack module\n"
 		(exclude_from_sim no)
-		(at 162.814 35.814 0)
+		(at 97.282 45.212 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -1081,20 +1086,20 @@
 		(uuid "7dacf2e6-304c-4bb4-a18e-f78c1b3c95c6")
 	)
 	(junction
-		(at 154.94 64.77)
+		(at 82.55 60.96)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "1d971a41-72d7-4386-b3e8-a68140a7bfc8")
 	)
 	(junction
-		(at 154.94 43.18)
+		(at 104.14 58.42)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "d42f254a-c14e-4825-b7f2-10c07f095094")
 	)
 	(wire
 		(pts
-			(xy 148.59 43.18) (xy 154.94 43.18)
+			(xy 97.79 58.42) (xy 104.14 58.42)
 		)
 		(stroke
 			(width 0)
@@ -1104,17 +1109,7 @@
 	)
 	(wire
 		(pts
-			(xy 168.91 72.39) (xy 168.91 60.96)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6334860a-9ef1-4c62-b90c-caf092bc4a41")
-	)
-	(wire
-		(pts
-			(xy 148.59 50.8) (xy 149.86 50.8)
+			(xy 97.79 66.04) (xy 99.06 66.04)
 		)
 		(stroke
 			(width 0)
@@ -1124,7 +1119,7 @@
 	)
 	(wire
 		(pts
-			(xy 160.02 50.8) (xy 161.29 50.8)
+			(xy 109.22 66.04) (xy 118.11 66.04)
 		)
 		(stroke
 			(width 0)
@@ -1134,7 +1129,7 @@
 	)
 	(wire
 		(pts
-			(xy 148.59 64.77) (xy 154.94 64.77)
+			(xy 76.2 60.96) (xy 82.55 60.96)
 		)
 		(stroke
 			(width 0)
@@ -1144,27 +1139,7 @@
 	)
 	(wire
 		(pts
-			(xy 161.29 58.42) (xy 168.91 58.42)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9d141f86-6dc6-4170-8b95-61ba88e8361b")
-	)
-	(wire
-		(pts
-			(xy 161.29 50.8) (xy 161.29 58.42)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "adea1842-89fc-4910-9994-04058e494bbd")
-	)
-	(wire
-		(pts
-			(xy 149.86 72.39) (xy 148.59 72.39)
+			(xy 77.47 68.58) (xy 76.2 68.58)
 		)
 		(stroke
 			(width 0)
@@ -1174,7 +1149,7 @@
 	)
 	(wire
 		(pts
-			(xy 160.02 72.39) (xy 168.91 72.39)
+			(xy 87.63 68.58) (xy 118.11 68.58)
 		)
 		(stroke
 			(width 0)
@@ -1184,7 +1159,7 @@
 	)
 	(hierarchical_label "I2C_SDA"
 		(shape input)
-		(at 148.59 50.8 180)
+		(at 97.79 66.04 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -1195,7 +1170,7 @@
 	)
 	(hierarchical_label "I2C_SCL"
 		(shape input)
-		(at 148.59 72.39 180)
+		(at 76.2 68.58 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -1206,7 +1181,7 @@
 	)
 	(symbol
 		(lib_id "Transistor_FET:BSS138")
-		(at 154.94 48.26 270)
+		(at 104.14 63.5 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1216,7 +1191,7 @@
 		(dnp no)
 		(uuid "03c5b0bc-2d35-4838-8bbd-95680575f528")
 		(property "Reference" "Q1"
-			(at 153.67 54.356 90)
+			(at 102.87 69.596 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1227,7 +1202,7 @@
 			)
 		)
 		(property "Value" "BSS138"
-			(at 151.384 56.642 90)
+			(at 100.584 71.882 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1238,7 +1213,7 @@
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 153.035 53.34 0)
+			(at 102.235 68.58 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1251,7 +1226,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.onsemi.com/pub/Collateral/BSS138-D.PDF"
-			(at 151.13 53.34 0)
+			(at 100.33 68.58 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1263,7 +1238,7 @@
 			)
 		)
 		(property "Description" "50V Vds, 0.22A Id, N-Channel MOSFET, SOT-23"
-			(at 154.94 48.26 0)
+			(at 104.14 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1293,7 +1268,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 148.59 68.58 0)
+		(at 76.2 64.77 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1303,7 +1278,7 @@
 		(dnp no)
 		(uuid "75a01de9-7ce0-4f3a-adac-72c59b004bea")
 		(property "Reference" "R11"
-			(at 143.51 67.31 0)
+			(at 71.12 63.5 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1314,7 +1289,7 @@
 			)
 		)
 		(property "Value" "4k7"
-			(at 143.51 69.85 0)
+			(at 71.12 66.04 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1325,7 +1300,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 146.812 68.58 90)
+			(at 74.422 64.77 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1336,7 +1311,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 148.59 68.58 0)
+			(at 76.2 64.77 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1347,7 +1322,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 148.59 68.58 0)
+			(at 76.2 64.77 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1374,7 +1349,7 @@
 	)
 	(symbol
 		(lib_id "power:+5V")
-		(at 168.91 55.88 90)
+		(at 118.11 63.5 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1384,7 +1359,7 @@
 		(dnp no)
 		(uuid "75e2101e-ec86-47f6-97b1-5df9d8e7a437")
 		(property "Reference" "#PWR041"
-			(at 172.72 55.88 0)
+			(at 121.92 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1395,7 +1370,7 @@
 			)
 		)
 		(property "Value" "+5V"
-			(at 166.116 55.118 90)
+			(at 115.316 62.738 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1406,7 +1381,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 168.91 55.88 0)
+			(at 118.11 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1417,7 +1392,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 168.91 55.88 0)
+			(at 118.11 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1428,7 +1403,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+5V\""
-			(at 168.91 55.88 0)
+			(at 118.11 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1452,7 +1427,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 168.91 53.34 270)
+		(at 118.11 60.96 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1462,7 +1437,7 @@
 		(dnp no)
 		(uuid "855e2f8a-c3e9-4d47-87c1-4d2a8c94d0eb")
 		(property "Reference" "#PWR040"
-			(at 162.56 53.34 0)
+			(at 111.76 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1473,7 +1448,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 166.624 51.816 90)
+			(at 115.824 59.436 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1484,7 +1459,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 168.91 53.34 0)
+			(at 118.11 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1495,7 +1470,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 168.91 53.34 0)
+			(at 118.11 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1506,7 +1481,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 168.91 53.34 0)
+			(at 118.11 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1530,7 +1505,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 148.59 46.99 0)
+		(at 97.79 62.23 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1540,7 +1515,7 @@
 		(dnp no)
 		(uuid "b603f8b1-3dfe-498a-9d4c-1b89990c252d")
 		(property "Reference" "R10"
-			(at 143.256 45.466 0)
+			(at 92.456 60.706 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1551,7 +1526,7 @@
 			)
 		)
 		(property "Value" "4k7"
-			(at 143.256 48.006 0)
+			(at 92.456 63.246 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1562,7 +1537,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 146.812 46.99 90)
+			(at 96.012 62.23 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1573,7 +1548,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 148.59 46.99 0)
+			(at 97.79 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1584,7 +1559,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 148.59 46.99 0)
+			(at 97.79 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1611,7 +1586,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 154.94 64.77 0)
+		(at 82.55 60.96 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1621,7 +1596,7 @@
 		(dnp no)
 		(uuid "bec96bc1-084c-4d25-9f36-6607627d6d9c")
 		(property "Reference" "#PWR039"
-			(at 154.94 68.58 0)
+			(at 82.55 64.77 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1632,7 +1607,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 154.432 60.96 0)
+			(at 82.042 57.15 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1642,7 +1617,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 64.77 0)
+			(at 82.55 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1653,7 +1628,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 64.77 0)
+			(at 82.55 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1664,7 +1639,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 154.94 64.77 0)
+			(at 82.55 60.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1688,7 +1663,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 154.94 43.18 0)
+		(at 104.14 58.42 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1698,7 +1673,7 @@
 		(dnp no)
 		(uuid "c55874a1-6a86-4646-9fe5-327d50d86eef")
 		(property "Reference" "#PWR038"
-			(at 154.94 46.99 0)
+			(at 104.14 62.23 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1709,7 +1684,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 152.146 39.37 0)
+			(at 101.346 54.61 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1720,7 +1695,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 43.18 0)
+			(at 104.14 58.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1731,7 +1706,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 43.18 0)
+			(at 104.14 58.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1742,7 +1717,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 154.94 43.18 0)
+			(at 104.14 58.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1766,7 +1741,7 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x04")
-		(at 173.99 55.88 0)
+		(at 123.19 63.5 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1777,7 +1752,7 @@
 		(fields_autoplaced yes)
 		(uuid "cab4c5b6-382d-477a-9f78-255d9d221da8")
 		(property "Reference" "J3"
-			(at 176.53 55.8799 0)
+			(at 125.73 63.4999 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1788,7 +1763,7 @@
 			)
 		)
 		(property "Value" "Conn_01x04"
-			(at 176.53 58.4199 0)
+			(at 125.73 66.0399 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1799,7 +1774,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 173.99 55.88 0)
+			(at 123.19 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1810,7 +1785,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 173.99 55.88 0)
+			(at 123.19 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1821,7 +1796,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 173.99 55.88 0)
+			(at 123.19 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1854,7 +1829,7 @@
 	)
 	(symbol
 		(lib_id "Transistor_FET:BSS138")
-		(at 154.94 69.85 270)
+		(at 82.55 66.04 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -1865,7 +1840,7 @@
 		(fields_autoplaced yes)
 		(uuid "efad9d6c-79ae-45e3-bc98-3d9dd9ce0c1e")
 		(property "Reference" "Q2"
-			(at 154.94 76.2 90)
+			(at 82.55 72.39 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1875,7 +1850,7 @@
 			)
 		)
 		(property "Value" "BSS138"
-			(at 154.94 78.74 90)
+			(at 82.55 74.93 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -1885,7 +1860,7 @@
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
-			(at 153.035 74.93 0)
+			(at 80.645 71.12 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1898,7 +1873,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.onsemi.com/pub/Collateral/BSS138-D.PDF"
-			(at 151.13 74.93 0)
+			(at 78.74 71.12 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -1910,7 +1885,7 @@
 			)
 		)
 		(property "Description" "50V Vds, 0.22A Id, N-Channel MOSFET, SOT-23"
-			(at 154.94 69.85 0)
+			(at 82.55 66.04 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
