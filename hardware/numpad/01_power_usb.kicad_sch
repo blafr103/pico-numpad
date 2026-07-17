@@ -2571,7 +2571,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
 			(at 80.772 59.69 90)
 			(hide yes)
 			(show_name no)
@@ -2814,7 +2814,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0805_2012Metric"
 			(at 167.3352 55.88 0)
 			(hide yes)
 			(show_name no)
@@ -3538,7 +3538,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
 			(at 101.092 59.69 90)
 			(hide yes)
 			(show_name no)
@@ -3696,7 +3696,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12"
 			(at 55.88 63.5 0)
 			(hide yes)
 			(show_name no)
@@ -3823,7 +3823,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Capacitor_SMD:C_0805_2012Metric"
 			(at 140.6652 55.88 0)
 			(hide yes)
 			(show_name no)

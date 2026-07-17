@@ -4734,7 +4734,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Rotary_Encoder:RotaryEncoder_Alps_EC11E-Switch_Vertical_H20mm"
 			(at 176.53 94.234 0)
 			(hide yes)
 			(show_name no)
