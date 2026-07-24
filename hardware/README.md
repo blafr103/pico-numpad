@@ -1,6 +1,6 @@
 # pico-numpad - Hardware
 
-Custom two-layer PCB for a 17-key USB numpad with per-key RGB, a rotary encoder, and a 16x2 character LCD. This is the custom-board successor to the hand-wired CircuitPython numpad documented in the [repository root](../), rebuilt around a bare RP2040 with hot-swap switches.
+Custom two-layer PCB for a 17-key USB numpad with per-key RGB, a rotary encoder, and a 16x2 character LCD. This is the custom-board successor to the hand-wired CircuitPython numpad documented in the repository root, rebuilt around a bare RP2040 with hot-swap switches.
 
 **Status - Rev A.** Design complete, DRC clean, full design review passed, boards on order (PCBWay, ENIG). This revision has **not been assembled or tested**, and the C firmware targeting it is **not yet written**. Treat the design as unvalidated.
 
