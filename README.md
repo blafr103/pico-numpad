@@ -209,8 +209,8 @@ PC stat rows are composed entirely on the host: companion.py reads
 LibreHardwareMonitor's JSON endpoint, selects sensors by hardware
 prefix and display name (numeric sensor indices shift between LHM
 versions), and sends each page row as a finished 16-character line.
-The Pico renders these verbatim — apart from substituting `*` with
-the LCD's degree symbol — so adding or reworking a stat page is a
+The Pico renders these verbatim, apart from substituting `*` with
+the LCD's degree symbol, so adding or reworking a stat page is a
 host-only change. Missing sensors render as `--`; the sensor names
 target this machine's hardware and need adjusting for others.
 
