@@ -8,6 +8,10 @@ The enclosure, electronics, and firmware were designed specifically for
 this project using CircuitPython with event-driven matrix scanning via
 `keypad.KeyMatrix`.
 
+This README documents the hand-wired prototype. A custom two-layer PCB
+successor built around a bare RP2040 is documented in
+[`hardware/`](hardware/).
+
 ## Features
 
 - USB HID numeric keypad
@@ -57,8 +61,8 @@ weather (Environment Canada API), and PC hardware monitoring.
 
 This prototype is entirely hand-built rather than assembled on a PCB. The
 hand-wired construction allowed the electrical design, firmware, and enclosure
-to be developed and validated prior to designing a dedicated PCB revision, 
-which is planned as the next major hardware revision.
+to be developed and validated before committing to a dedicated PCB. That board
+now exists as rev A and is documented in [`hardware/`](hardware/).
 
 ### Enclosure
 
@@ -91,6 +95,9 @@ the column), matching the firmware configuration
 (`columns_to_anodes=False`). The matrix layout and diode orientation were
 verified using the included `tools/matrix_map_test.py` and
 `tools/diode_test.py` utilities.
+
+Note that the rev A PCB in [`hardware/`](hardware/) uses the opposite
+orientation (cathode to row).
 
 ### Lighting
 
@@ -225,11 +232,11 @@ communication.
 
 ## Future Improvements
 
-- Two-layer custom PCB replacing the hand-wired prototype
-- USB-C integrated into the enclosure
 - User-configurable key mapping and macros
 - More robust persistent configuration storage
-- RGB per-key lighting
+  
+The custom PCB, integrated USB-C, and per-key RGB lighting items previously
+listed here are addressed by the rev A board in [`hardware/`](hardware/).
 
 ## Tools
 
