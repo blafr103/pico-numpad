@@ -12,6 +12,12 @@ This README documents the hand-wired prototype. A custom two-layer PCB
 successor built around a bare RP2040 is documented in
 [`hardware/`](hardware/).
 
+<p align="center">
+  <img src="images/revA_board.jpg" alt="Rev A custom RP2040 PCB, front and back" width="720"><br>
+  <b>Rev A custom PCB</b>, front and back - bare RP2040, USB-C, per-key RGB, hot-swap sockets and a rotary encoder.
+  Assembled, bring-up in progress (see <a href="hardware/">hardware/</a>).
+</p>
+
 ## Features
 
 - USB HID numeric keypad

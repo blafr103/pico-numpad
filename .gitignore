@@ -5,3 +5,24 @@
 _autosave-*
 fp-info-cache
 ~*.lck
+
+# KiCad per-user editor state and generated netlist
+*.kicad_prl
+*.net
+
+# Fabrication outputs, attached to the rev-a GitHub release instead
+hardware/numpad/numpad-revA-fab/
+hardware/numpad/numpad-revA-fab.zip
+hardware/numpad/plot-files/
+hardware/numpad/step-files/
+hardware/numpad/W1129510AS1K1.pdf
+hardware/stencil_gerbers/
+hardware/stencil_gerbers.zip
+hardware/production file W1129510AS1K2/
+hardware/production file W1129510AS1K2.zip
+
+# C firmware build output
+firmware/build/
+
+# Raw backup of the CIRCUITPY drive, kept locally only
+reference/circuitpy-backup/

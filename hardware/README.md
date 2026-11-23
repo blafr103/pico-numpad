@@ -29,7 +29,6 @@ hardware/
 ├── README.md                            this file
 ├── numpad/
 │   ├── numpad.kicad_pro                 KiCad project
-│   ├── numpad.kicad_prl                 project-local settings (editor state, netclasses)
 │   ├── numpad.kicad_pcb                 board
 │   ├── numpad.kicad_sch                 schematic, root sheet
 │   ├── 01_power_usb.kicad_sch           USB-C, ESD, 3.3 V regulator
@@ -41,17 +40,10 @@ hardware/
 │   ├── sym-lib-table                    symbol library table
 │   ├── numpad.csv                       BOM export from the schematic
 │   ├── part-numbers.txt                 working notes on ordered part numbers
-│   ├── lib/marbastlib/                  git submodule - MX symbols/footprints, Kailh sockets
-│   ├── plot-files/                      raw KiCad plot output - all gerbers, both drill maps, DXF, drills
-│   ├── numpad-revA-fab/                 cleaned fab set actually sent to the fab (12 files)
-│   ├── numpad-revA-fab.zip              the same set, zipped for upload
-│   ├── step-files/                      board STEP for the enclosure model
-│   └── W1129510AS1K1.pdf                PCBWay order document, W1129510AS1K1
-├── stencil_gerbers/                     paste and outline set sent for the SMD stencils
-├── stencil_gerbers.zip                  the same set, zipped for upload
-├── production file W1129510AS1K2/       PCBWay's returned CAM data for W1129510AS1K2
-└── production file W1129510AS1K2.zip    the same, as delivered
+│   └── lib/marbastlib/                  git submodule - MX symbols/footprints, Kailh sockets
 ```
+
+Fabrication outputs are not kept in the repository. The gerber and drill set sent to PCBWay, the stencil set, and the board STEP model are attached to the [rev-a release](https://github.com/blafr103/pico-numpad/releases/tag/rev-a).
 
 `numpad/lib/marbastlib` is a submodule. After cloning:
 
@@ -116,7 +108,7 @@ Fab specs, all inside a standard 2-layer capability:
 - 2-layer, 1.6 mm FR-4, 1 oz copper
 - 6/6 mil track/space class, 0.3 mm minimum drill
 - **ENIG recommended.** The RP2040 is a 0.4 mm-pitch QFN-56 - a flat immersion-gold finish wets far more predictably under hand soldering than domed HASL
-- 
+
 The board has **6 intentional plated slots** (4 at the USB-C connector shield legs, 2 at the encoder bracket), written as route-mode Excellon (`G00/M15/M16`) rather than G85. Most CAM tools read this correctly, but it is worth confirming in the fab's gerber viewer that they render as elongated openings.
 
 ---
